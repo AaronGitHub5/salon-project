@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from './AuthContext'
 import Login from './Login'
+import BookingModal from './BookingModal'
 
 function App() {
   const { user, signOut } = useAuth()
   const [services, setServices] = useState([])
   const [loading, setLoading] = useState(true)
+  const [selectedService, setSelectedService] = useState(null) // Controls the popup
 
   // 1. FETCH DATA
   useEffect(() => {
@@ -19,12 +21,33 @@ function App() {
     }
   }, [user])
 
-  // 2. SHOW LOGIN SCREEN IF NOT LOGGED IN
+  // 2. HANDLE BOOKING LOGIC
+  const handleBooking = async (stylistId, startTime) => {
+    const response = await fetch('http://localhost:5000/api/bookings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        customer_id: user.id,
+        service_id: selectedService.id,
+        stylist_id: stylistId,
+        start_time: startTime
+      })
+    });
+
+    if (response.ok) {
+      alert("Booking Confirmed!");
+      setSelectedService(null); // Close modal
+    } else {
+      alert("Failed to book. Check server console.");
+    }
+  };
+
+  // 3. SHOW LOGIN SCREEN IF NOT LOGGED IN
   if (!user) {
     return <Login />
   }
 
-  // 3. GROUPING ALGORITHM (Zero Hard-Coding)
+  // 4. GROUPING ALGORITHM (Zero Hard-Coding)
   const groupedServices = services.reduce((acc, service) => {
     const cat = service.category || 'Other Services';
     if (!acc[cat]) acc[cat] = [];
@@ -80,7 +103,11 @@ function App() {
                 </h3>
                 <div className="grid gap-px bg-gray-100 border border-gray-100">
                   {groupedServices[category].map(service => (
-                    <div key={service.id} className="bg-white p-6 flex justify-between items-center group hover:bg-gray-50 transition duration-300">
+                    <div 
+                      key={service.id} 
+                      onClick={() => setSelectedService(service)} 
+                      className="bg-white p-6 flex justify-between items-center group hover:bg-gray-50 transition duration-300 cursor-pointer"
+                    >
                       <div>
                         <h4 className="text-lg font-light uppercase tracking-widest text-gray-800 group-hover:text-black">
                           {service.name}
@@ -100,6 +127,15 @@ function App() {
           </div>
         )}
       </main>
+
+      {/* Booking Modal Popup */}
+      {selectedService && (
+        <BookingModal 
+          service={selectedService}
+          onClose={() => setSelectedService(null)}
+          onConfirm={handleBooking}
+        />
+      )}
     </div>
   )
 }
