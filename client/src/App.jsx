@@ -2,16 +2,19 @@ import { useState, useEffect } from 'react'
 import { useAuth } from './AuthContext'
 import Login from './Login'
 import BookingModal from './BookingModal'
+import AdminDashboard from './AdminDashboard'
 
 function App() {
   const { user, signOut } = useAuth()
   const [services, setServices] = useState([])
   const [loading, setLoading] = useState(true)
-  const [selectedService, setSelectedService] = useState(null) // Controls the popup
+  const [selectedService, setSelectedService] = useState(null)
+  const [view, setView] = useState('customer') // Tracks if we are in 'customer' or 'admin' mode
 
-  // 1. FETCH DATA
+  // 1. FETCH DATA (Only if logged in and not in admin mode to save resources)
   useEffect(() => {
-    if (user) {
+    if (user && view === 'customer') {
+      setLoading(true);
       fetch('http://localhost:5000/api/services')
         .then(res => res.json())
         .then(data => {
@@ -19,9 +22,9 @@ function App() {
           setLoading(false)
         })
     }
-  }, [user])
+  }, [user, view]) // Re-fetch when switching back to customer view
 
-  // 2. HANDLE BOOKING LOGIC
+  // 2. HANDLE BOOKING
   const handleBooking = async (stylistId, startTime) => {
     const response = await fetch('http://localhost:5000/api/bookings', {
       method: 'POST',
@@ -36,18 +39,21 @@ function App() {
 
     if (response.ok) {
       alert("Booking Confirmed!");
-      setSelectedService(null); // Close modal
+      setSelectedService(null);
     } else {
-      alert("Failed to book. Check server console.");
+      alert("Failed to book.");
     }
   };
 
-  // 3. SHOW LOGIN SCREEN IF NOT LOGGED IN
-  if (!user) {
-    return <Login />
+  // 3. SHOW LOGIN IF NOT LOGGED IN
+  if (!user) return <Login />
+
+  // 4. SHOW ADMIN DASHBOARD IF SWITCHED
+  if (view === 'admin') {
+    return <AdminDashboard onBack={() => setView('customer')} />;
   }
 
-  // 4. GROUPING ALGORITHM (Zero Hard-Coding)
+  // 5. GROUPING ALGORITHM
   const groupedServices = services.reduce((acc, service) => {
     const cat = service.category || 'Other Services';
     if (!acc[cat]) acc[cat] = [];
@@ -56,6 +62,7 @@ function App() {
   }, {});
   const categories = Object.keys(groupedServices);
 
+  // 6. MAIN CUSTOMER UI
   return (
     <div className="min-h-screen bg-white font-sans text-gray-900 tracking-wide selection:bg-black selection:text-white">
       {/* Navigation */}
@@ -69,12 +76,22 @@ function App() {
             <span className="text-xs uppercase tracking-widest text-gray-400 hidden md:block">
               {user.email}
             </span>
+            
+            {/* Admin Switcher Button */}
+            <button 
+              onClick={() => setView('admin')}
+              className="text-xs font-bold uppercase tracking-widest hover:text-blue-600 transition"
+            >
+              Admin Panel
+            </button>
+
             <button 
               onClick={signOut}
               className="text-xs font-bold uppercase tracking-widest hover:text-red-600 transition"
             >
               Logout
             </button>
+            
             <button className="bg-black text-white text-xs font-bold uppercase tracking-widest px-6 py-3 hover:bg-gray-800 transition">
               Book Online
             </button>
