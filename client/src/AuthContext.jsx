@@ -5,17 +5,17 @@ const AuthContext = createContext();
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
-  const [role, setRole] = useState(null); // <--- New State for Role
+  const [role, setRole] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Helper to get session and role
     const getSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       setUser(session?.user ?? null);
-      
+
       if (session?.user) {
-        // FETCH ROLE FROM DB
         const { data } = await supabase
           .from('profiles')
           .select('role')
@@ -25,14 +25,15 @@ export function AuthProvider({ children }) {
       } else {
         setRole(null);
       }
-      
+
       setLoading(false);
     };
 
     getSession();
 
-    // Listen for changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setUser(session?.user ?? null);
       if (session?.user) {
         const { data } = await supabase
@@ -53,12 +54,14 @@ export function AuthProvider({ children }) {
   const value = {
     signUp: (data) => supabase.auth.signUp(data),
     signIn: (data) => supabase.auth.signInWithPassword(data),
-    signOut: () => {
-        setRole(null);
-        return supabase.auth.signOut();
+    signOut: async () => {
+      setRole(null);
+      setUser(null);
+      const { error } = await supabase.auth.signOut();
+      if (error) console.error('Logout error:', error);
     },
     user,
-    role, // <--- Expose role to the rest of the app
+    role,
   };
 
   return (

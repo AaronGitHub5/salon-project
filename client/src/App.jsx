@@ -1,28 +1,33 @@
-import { useState, useEffect } from 'react'
-import { useAuth } from './AuthContext'
-import Login from './Login'
-import BookingModal from './BookingModal'
-import AdminDashboard from './AdminDashboard'
+import { useState, useEffect } from 'react';
+import { useAuth } from './AuthContext';
+import Login from './Login';
+import BookingModal from './BookingModal';
+import AdminDashboard from './AdminDashboard';
+import Profile from './Profile';
 
 function App() {
-  const { user, role, signOut } = useAuth() 
-  const [services, setServices] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [selectedService, setSelectedService] = useState(null)
-  const [view, setView] = useState('customer') // Tracks if we are in 'customer' or 'admin' mode
+  const { user, role, signOut } = useAuth();
+  const [services, setServices] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedService, setSelectedService] = useState(null);
+  const [view, setView] = useState('customer'); // Options: 'customer', 'admin', 'profile'
 
-  // 1. FETCH DATA (Only if logged in and not in admin mode to save resources)
+  // 1. FETCH DATA (Only if logged in and in customer view)
   useEffect(() => {
     if (user && view === 'customer') {
       setLoading(true);
       fetch('http://localhost:5000/api/services')
-        .then(res => res.json())
-        .then(data => {
-          setServices(data)
-          setLoading(false)
+        .then((res) => res.json())
+        .then((data) => {
+          setServices(data);
+          setLoading(false);
         })
+        .catch((err) => {
+          console.error('Error fetching services:', err);
+          setLoading(false);
+        });
     }
-  }, [user, view]) // Re-fetch when switching back to customer view
+  }, [user, view]);
 
   // 2. HANDLE BOOKING
   const handleBooking = async (stylistId, startTime) => {
@@ -33,27 +38,34 @@ function App() {
         customer_id: user.id,
         service_id: selectedService.id,
         stylist_id: stylistId,
-        start_time: startTime
-      })
+        start_time: startTime,
+      }),
     });
 
     if (response.ok) {
-      alert("Booking Confirmed!");
+      alert('Booking Confirmed!');
       setSelectedService(null);
     } else {
-      alert("Failed to book.");
+      alert('Failed to book.');
     }
   };
 
-  // 3. SHOW LOGIN IF NOT LOGGED IN
-  if (!user) return <Login />
+  const handleLogout = async () => {
+    await signOut();
+  };
 
-  // 4. SHOW ADMIN DASHBOARD IF SWITCHED
+  // 3. AUTH & VIEW GUARDS
+  if (!user) return <Login />;
+
   if (view === 'admin') {
     return <AdminDashboard onBack={() => setView('customer')} />;
   }
 
-  // 5. GROUPING ALGORITHM
+  if (view === 'profile') {
+    return <Profile onBack={() => setView('customer')} />;
+  }
+
+  // 4. GROUP SERVICES
   const groupedServices = services.reduce((acc, service) => {
     const cat = service.category || 'Other Services';
     if (!acc[cat]) acc[cat] = [];
@@ -62,7 +74,7 @@ function App() {
   }, {});
   const categories = Object.keys(groupedServices);
 
-  // 6. MAIN CUSTOMER UI
+  // 5. MAIN RENDER
   return (
     <div className="min-h-screen bg-white font-sans text-gray-900 tracking-wide selection:bg-black selection:text-white">
       {/* Navigation */}
@@ -71,14 +83,20 @@ function App() {
           <div className="text-xl md:text-2xl font-light uppercase tracking-[0.2em]">
             Hair By Amnesia
           </div>
-          
+
           <div className="flex items-center gap-6">
-            <span className="text-xs uppercase tracking-widest text-gray-400 hidden md:block">
-              {user.email}
-            </span>
             
+            {/* Profile Link (Click Email to View Profile) */}
+            <button
+              onClick={() => setView('profile')}
+              className="text-xs uppercase tracking-widest text-gray-500 hover:text-black hidden md:block border-b border-transparent hover:border-black transition"
+            >
+              {user.email}
+            </button>
+
+            {/* Admin Link (Only visible if Admin) */}
             {role === 'admin' && (
-              <button 
+              <button
                 onClick={() => setView('admin')}
                 className="text-xs font-bold uppercase tracking-widest hover:text-blue-600 transition"
               >
@@ -86,13 +104,13 @@ function App() {
               </button>
             )}
 
-            <button 
-              onClick={signOut}
+            <button
+              onClick={handleLogout}
               className="text-xs font-bold uppercase tracking-widest hover:text-red-600 transition"
             >
               Logout
             </button>
-            
+
             <button className="bg-black text-white text-xs font-bold uppercase tracking-widest px-6 py-3 hover:bg-gray-800 transition">
               Book Online
             </button>
@@ -102,7 +120,9 @@ function App() {
 
       {/* Hero */}
       <div className="pt-32 pb-12 px-6 text-center">
-        <h2 className="text-4xl md:text-5xl font-light mb-4 text-gray-800">The Collection</h2>
+        <h2 className="text-4xl md:text-5xl font-light mb-4 text-gray-800">
+          The Collection
+        </h2>
         <div className="w-12 h-0.5 bg-black mx-auto mt-6"></div>
       </div>
 
@@ -114,16 +134,16 @@ function App() {
           </div>
         ) : (
           <div className="space-y-16">
-            {categories.map(category => (
+            {categories.map((category) => (
               <div key={category}>
                 <h3 className="text-xl font-light uppercase tracking-[0.15em] mb-8 text-center text-gray-500">
                   {category}
                 </h3>
                 <div className="grid gap-px bg-gray-100 border border-gray-100">
-                  {groupedServices[category].map(service => (
-                    <div 
-                      key={service.id} 
-                      onClick={() => setSelectedService(service)} 
+                  {groupedServices[category].map((service) => (
+                    <div
+                      key={service.id}
+                      onClick={() => setSelectedService(service)}
                       className="bg-white p-6 flex justify-between items-center group hover:bg-gray-50 transition duration-300 cursor-pointer"
                     >
                       <div>
@@ -148,14 +168,14 @@ function App() {
 
       {/* Booking Modal Popup */}
       {selectedService && (
-        <BookingModal 
+        <BookingModal
           service={selectedService}
           onClose={() => setSelectedService(null)}
           onConfirm={handleBooking}
         />
       )}
     </div>
-  )
+  );
 }
 
-export default App
+export default App;
