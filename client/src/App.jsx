@@ -4,13 +4,14 @@ import Login from './Login';
 import BookingModal from './BookingModal';
 import AdminDashboard from './AdminDashboard';
 import Profile from './Profile';
+import StylistSchedule from './StylistSchedule';
 
 function App() {
   const { user, role, signOut } = useAuth();
   const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedService, setSelectedService] = useState(null);
-  const [view, setView] = useState('customer'); // Options: 'customer', 'admin', 'profile'
+  const [view, setView] = useState('customer'); // 'customer', 'admin', 'profile', 'stylist'
 
   // 1. FETCH DATA (Only if logged in and in customer view)
   useEffect(() => {
@@ -65,6 +66,10 @@ function App() {
     return <Profile onBack={() => setView('customer')} />;
   }
 
+  if (view === 'stylist') {
+    return <StylistSchedule onBack={() => setView('customer')} />;
+  }
+
   // 4. GROUP SERVICES
   const groupedServices = services.reduce((acc, service) => {
     const cat = service.category || 'Other Services';
@@ -77,8 +82,10 @@ function App() {
   // 5. MAIN RENDER
   return (
     <div className="min-h-screen bg-white font-sans text-gray-900 tracking-wide selection:bg-black selection:text-white">
+      
+    
       {/* Navigation */}
-      <nav className="fixed w-full bg-white/95 backdrop-blur-sm border-b border-gray-100 z-50 transition-all duration-300">
+      <nav className="fixed w-full bg-white/95 backdrop-blur-sm border-b border-gray-100 z-40 transition-all duration-300">
         <div className="max-w-6xl mx-auto px-6 h-20 flex items-center justify-between">
           <div className="text-xl md:text-2xl font-light uppercase tracking-[0.2em]">
             Hair By Amnesia
@@ -86,7 +93,7 @@ function App() {
 
           <div className="flex items-center gap-6">
             
-            {/* Profile Link (Click Email to View Profile) */}
+            {/* Profile Link */}
             <button
               onClick={() => setView('profile')}
               className="text-xs uppercase tracking-widest text-gray-500 hover:text-black hidden md:block border-b border-transparent hover:border-black transition"
@@ -98,9 +105,19 @@ function App() {
             {role === 'admin' && (
               <button
                 onClick={() => setView('admin')}
-                className="text-xs font-bold uppercase tracking-widest hover:text-blue-600 transition"
+                className="text-xs font-bold uppercase tracking-widest text-blue-600 hover:text-blue-800 transition"
               >
                 Admin Panel
+              </button>
+            )}
+
+            {/* Stylist Link (Only visible if Stylist) */}
+            {role === 'stylist' && (
+              <button
+                onClick={() => setView('stylist')}
+                className="text-xs font-bold uppercase tracking-widest text-purple-600 hover:text-purple-800 transition"
+              >
+                My Schedule
               </button>
             )}
 

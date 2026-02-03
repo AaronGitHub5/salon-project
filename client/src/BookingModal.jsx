@@ -74,7 +74,7 @@ export default function BookingModal({ service, onClose, onConfirm }) {
 
     if (selectedDate) {
       const day = selectedDate.getDay(); 
-      // 🆕 PEAK LOGIC: Friday (5) or Saturday (6)
+      // PEAK LOGIC: Friday (5) or Saturday (6)
       const isPeakDay = day === 5 || day === 6;
       
       let isEvening = false;
@@ -191,14 +191,11 @@ export default function BookingModal({ service, onClose, onConfirm }) {
               className="w-full border border-gray-300 p-3 bg-white text-sm"
             >
               <option value="">Choose a stylist...</option>
-              {stylists.map((s) => {
-                 const title = s.price_multiplier >= 1.5 ? "Senior Stylist" : "Junior Stylist";
-                 return (
-                  <option key={s.id} value={s.id}>
-                    {s.name} — {title}
-                  </option>
-                 );
-              })}
+              {stylists.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
             </select>
           </div>
 

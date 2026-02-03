@@ -3,8 +3,12 @@ import { useAuth } from './AuthContext';
 
 export default function Login() {
   const { signIn, signUp } = useAuth();
+  
+  // Form State
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [fullName, setFullName] = useState(''); // 🆕 New State
+  
   const [isSignUp, setIsSignUp] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -14,13 +18,29 @@ export default function Login() {
     setError('');
     setLoading(true);
     
-    // Call Supabase function
-    const { error } = isSignUp 
-      ? await signUp({ email, password })
-      : await signIn({ email, password });
-
-    if (error) setError(error.message);
-    setLoading(false);
+    try {
+      if (isSignUp) {
+        // Pass extra metadata (full_name) to Supabase
+        const { error } = await signUp({ 
+          email, 
+          password, 
+          options: {
+            data: {
+              full_name: fullName, // This saves to raw_user_meta_data
+            },
+          } 
+        });
+        if (error) throw error;
+        alert("Account created! Please check your email or log in.");
+      } else {
+        const { error } = await signIn({ email, password });
+        if (error) throw error;
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -33,6 +53,18 @@ export default function Login() {
         {error && <p className="bg-red-50 text-red-600 p-3 text-xs mb-4">{error}</p>}
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          
+          {/* 🆕 Name Input - Only for Sign Up */}
+          {isSignUp && (
+            <input
+              type="text"
+              placeholder="Full Name"
+              className="border p-3 text-sm focus:outline-black transition"
+              onChange={(e) => setFullName(e.target.value)}
+              required
+            />
+          )}
+
           <input
             type="email"
             placeholder="Email Address"
@@ -47,7 +79,11 @@ export default function Login() {
             onChange={(e) => setPassword(e.target.value)}
             required
           />
-          <button disabled={loading} className="bg-black text-white p-3 text-xs font-bold uppercase tracking-widest hover:bg-gray-800 transition">
+          
+          <button 
+            disabled={loading} 
+            className="bg-black text-white p-3 text-xs font-bold uppercase tracking-widest hover:bg-gray-800 transition"
+          >
             {loading ? 'Processing...' : (isSignUp ? 'Create Account' : 'Login')}
           </button>
         </form>
