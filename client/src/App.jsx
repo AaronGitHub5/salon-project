@@ -5,7 +5,7 @@ import BookingModal from './BookingModal'
 import AdminDashboard from './AdminDashboard'
 
 function App() {
-  const { user, signOut } = useAuth()
+  const { user, role, signOut } = useAuth() 
   const [services, setServices] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedService, setSelectedService] = useState(null)
@@ -77,13 +77,14 @@ function App() {
               {user.email}
             </span>
             
-            {/* Admin Switcher Button */}
-            <button 
-              onClick={() => setView('admin')}
-              className="text-xs font-bold uppercase tracking-widest hover:text-blue-600 transition"
-            >
-              Admin Panel
-            </button>
+            {role === 'admin' && (
+              <button 
+                onClick={() => setView('admin')}
+                className="text-xs font-bold uppercase tracking-widest hover:text-blue-600 transition"
+              >
+                Admin Panel
+              </button>
+            )}
 
             <button 
               onClick={signOut}
