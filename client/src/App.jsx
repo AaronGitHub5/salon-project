@@ -14,6 +14,10 @@ function App() {
   const [selectedService, setSelectedService] = useState(null);
   const [view, setView] = useState('customer'); 
 
+  // Debugging: Check if role is arriving correctly
+  console.log("Current User:", user?.email);
+  console.log("Current Role:", role);
+
   // 1. FETCH DATA 
   useEffect(() => {
     if (user && view === 'customer') {
@@ -52,11 +56,10 @@ function App() {
     }
   };
 
-  // 3. SAFE LOGOUT (FORCE REFRESH FIX)
+  // 3. LOGOUT
   const handleLogout = async () => {
     await signOut();
-    // Force a hard reload to clear all session cache
-    window.location.href = '/'; 
+    window.location.reload(); 
   };
 
   // 4. AUTH GUARDS
@@ -95,7 +98,6 @@ function App() {
 
           <div className="flex items-center gap-6">
             
-            {/* Profile Link (Safe Check) */}
             <button
               onClick={() => setView('profile')}
               className="text-xs uppercase tracking-widest text-gray-500 hover:text-black hidden md:block border-b border-transparent hover:border-black transition"
@@ -103,10 +105,11 @@ function App() {
               {user?.email} 
             </button>
 
+            {/* DIRECT CHECK FOR ADMIN ROLE */}
             {role === 'admin' && (
               <button
                 onClick={() => setView('admin')}
-                className="text-xs font-bold uppercase tracking-widest text-blue-600 hover:text-blue-800 transition"
+                className="bg-blue-600 text-white px-3 py-1 rounded text-xs font-bold uppercase tracking-widest hover:bg-blue-700 transition"
               >
                 Admin Panel
               </button>
