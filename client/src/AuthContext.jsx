@@ -3,8 +3,8 @@ import { supabase } from './lib/supabase';
 
 const AuthContext = createContext();
 
-// Force clear on first visit with new code
-const AUTH_VERSION = '2';
+// Bump version to force a clean slate for everyone
+const AUTH_VERSION = '5'; 
 
 function nukeStorage() {
   Object.keys(localStorage).forEach((key) => {
@@ -12,41 +12,54 @@ function nukeStorage() {
   });
 }
 
-// Check if ANY session exists before React even renders
 function hasExistingSession() {
   return Object.keys(localStorage).some((key) => key.startsWith('sb-'));
 }
 
 export function AuthProvider({ children }) {
-  // If no session in storage, skip loading entirely
   const [user, setUser] = useState(null);
   const [role, setRole] = useState(null);
   const [loading, setLoading] = useState(hasExistingSession());
   const isSigningIn = useRef(false);
 
-  // One-time version check - clears old corrupted data
   useEffect(() => {
     const storedVersion = localStorage.getItem('auth_version');
     if (storedVersion !== AUTH_VERSION) {
-      console.log('New auth version - clearing old data');
       nukeStorage();
       localStorage.setItem('auth_version', AUTH_VERSION);
       setLoading(false);
     }
   }, []);
 
+  // --- FIXED fetchRole FUNCTION ---
   const fetchRole = async (userId) => {
-    try {
-      const { data } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', userId)
-        .single();
-      return data?.role || 'customer';
-    } catch {
+    console.log(`🔍 Fetching role for User ID: ${userId}`);
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', userId)
+      .single();
+
+    // 1. Log the EXACT result from the database
+    if (error) {
+      console.error('❌ Supabase Error fetching role:', error);
+      // If code is 'PGRST116', it means no row exists in 'profiles' table
+      if (error.code === 'PGRST116') {
+        console.error('⚠️ Critical: User exists in Auth but has NO ROW in public.profiles table.');
+      }
+      return 'customer'; // Default to safe role on error
+    }
+
+    if (!data) {
+      console.error('❌ No data returned from Supabase.');
       return 'customer';
     }
+
+    console.log(`✅ Success! Role from DB is: "${data.role}"`);
+    return data.role || 'customer';
   };
+  // --------------------------------
 
   useEffect(() => {
     if (!hasExistingSession()) {
@@ -59,7 +72,6 @@ export function AuthProvider({ children }) {
     const init = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-
         if (!mounted) return;
 
         if (session?.user) {
@@ -67,7 +79,8 @@ export function AuthProvider({ children }) {
           setUser(session.user);
           setRole(userRole);
         }
-      } catch {
+      } catch (err) {
+        console.error("Session init failed:", err);
         nukeStorage();
       } finally {
         if (mounted) setLoading(false);
@@ -105,6 +118,12 @@ export function AuthProvider({ children }) {
 
     const { data, error } = await supabase.auth.signInWithPassword(credentials);
 
+    if (error) {
+        console.error("Sign In Error:", error.message);
+        isSigningIn.current = false;
+        return { data, error };
+    }
+
     if (data?.user) {
       const userRole = await fetchRole(data.user.id);
       setUser(data.user);
@@ -122,9 +141,7 @@ export function AuthProvider({ children }) {
     await supabase.auth.signOut().catch(() => {});
   };
 
-  if (loading) {
-    return null; // Brief flash, not 5 seconds
-  }
+  if (loading) return null;
 
   return (
     <AuthContext.Provider
