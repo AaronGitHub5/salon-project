@@ -52,10 +52,11 @@ function App() {
     }
   };
 
-  // 3. SAFE LOGOUT
+  // 3. SAFE LOGOUT (FORCE REFRESH FIX)
   const handleLogout = async () => {
     await signOut();
-    setView('customer'); // Reset view to prevent stuck state
+    // Force a hard reload to clear all session cache
+    window.location.href = '/'; 
   };
 
   // 4. AUTH GUARDS
@@ -94,7 +95,7 @@ function App() {
 
           <div className="flex items-center gap-6">
             
-            {/* Profile Link (Safe Check Added) */}
+            {/* Profile Link (Safe Check) */}
             <button
               onClick={() => setView('profile')}
               className="text-xs uppercase tracking-widest text-gray-500 hover:text-black hidden md:block border-b border-transparent hover:border-black transition"
