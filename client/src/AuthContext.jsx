@@ -8,41 +8,58 @@ export function AuthProvider({ children }) {
   const [role, setRole] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Helper to safely fetch role
+  const fetchRole = async (userId) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', userId)
+        .single();
+      
+      if (error || !data) return 'customer'; // Default safe fallback
+      return data.role;
+    } catch (err) {
+      console.error("Role fetch failed:", err);
+      return 'customer';
+    }
+  };
+
   useEffect(() => {
-    const getSession = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      setUser(session?.user ?? null);
+    // 1. Initial Session Check
+    const initSession = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) throw error;
 
-      if (session?.user) {
-        const { data } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', session.user.id)
-          .single();
-        setRole(data?.role || 'customer');
-      } else {
+        if (session?.user) {
+          setUser(session.user);
+          const userRole = await fetchRole(session.user.id);
+          setRole(userRole);
+        }
+      } catch (err) {
+        console.error("Session corrupted, clearing...", err);
+        //  Force logout if session is weird
+        await supabase.auth.signOut();
+        setUser(null);
         setRole(null);
+        localStorage.clear(); // Nuclear option for safety
+      } finally {
+        setLoading(false);
       }
-
-      setLoading(false);
     };
 
-    getSession();
+    initSession();
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setUser(session?.user ?? null);
+    // 2. Listen for Changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
-        const { data } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', session.user.id)
-          .single();
-        setRole(data?.role || 'customer');
+        setUser(session.user);
+        const userRole = await fetchRole(session.user.id);
+        setRole(userRole);
       } else {
+        setUser(null);
         setRole(null);
       }
       setLoading(false);
@@ -57,8 +74,8 @@ export function AuthProvider({ children }) {
     signOut: async () => {
       setRole(null);
       setUser(null);
-      const { error } = await supabase.auth.signOut();
-      if (error) console.error('Logout error:', error);
+      await supabase.auth.signOut();
+      localStorage.clear(); // Ensure clean exit
     },
     user,
     role,
