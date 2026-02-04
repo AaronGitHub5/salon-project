@@ -25,7 +25,7 @@ let transporter;
 async function initMail() {
   try {
     transporter = nodemailer.createTransport({
-      jsonTransport: true,
+      jsonTransport: true, // Output to console instead of actual sending
     });
     console.log('📧 Mail System Ready (Log Mode)');
   } catch (err) {
@@ -35,7 +35,13 @@ async function initMail() {
 initMail();
 
 async function sendEmail(to, subject, html) {
-  if (!transporter) return;
+  console.log(`Attempting to send email to: ${to}...`); // DEBUG 1
+
+  if (!transporter) {
+    console.error("Transporter not initialized!");
+    return;
+  }
+  
   try {
     const info = await transporter.sendMail({
       from: '"Hair By Amnesia" <no-reply@amnesia.com>',
@@ -169,6 +175,8 @@ app.get('/api/bookings', async (req, res) => {
 
 app.post('/api/bookings', async (req, res) => {
   const { customer_id, service_id, stylist_id, start_time } = req.body;
+  console.log("Creating booking for customer:", customer_id); // DEBUG
+
   try {
     const { data: service } = await supabase
       .from('services')
@@ -217,24 +225,31 @@ app.post('/api/bookings', async (req, res) => {
 
     if (error) throw error;
 
-    // Email
+    // Email Logic - With explicit debugging
+    console.log("Fetching profile for email..."); // DEBUG
+    
     const { data: profile } = await supabase
       .from('profiles')
       .select('email, full_name')
       .eq('id', customer_id)
       .single();
+
     if (profile?.email) {
-      sendEmail(
+      console.log(`Found email: ${profile.email}. Sending confirmation...`); // DEBUG
+      await sendEmail(
         profile.email,
         'Booking Confirmed - Amnesia',
         `<p>Confirmed for ${start.toLocaleString()}</p>`
       );
+    } else {
+      console.log("WARNING: No email found for user ID:", customer_id); // DEBUG - Explains why email might fail
     }
 
     res
       .status(201)
       .json({ message: 'Booking Confirmed!', booking: data, price: finalPrice });
   } catch (error) {
+    console.error("Booking failed:", error); // DEBUG
     res.status(500).json({ error: error.message });
   }
 });
@@ -264,10 +279,9 @@ app.post('/api/bookings/guest', async (req, res) => {
     const start = new Date(startTime);
     const end = new Date(start.getTime() + service.duration_minutes * 60000);
 
-    // FIXED: Changed stylist_id to stylistId
     if (
       await checkBookingConflict(
-        stylistId,
+        stylistId, // Fixed typo from previous version
         start.toISOString(),
         end.toISOString()
       )
@@ -299,7 +313,8 @@ app.post('/api/bookings/guest', async (req, res) => {
 
     // Email
     if (guestEmail) {
-      sendEmail(
+      console.log(`Sending Guest Email to: ${guestEmail}`); // DEBUG
+      await sendEmail(
         guestEmail,
         'Appointment Confirmed',
         `<p>Confirmed for ${start.toLocaleString()}</p>`
@@ -337,6 +352,8 @@ app.get('/api/bookings/customer/:id', async (req, res) => {
 // Cancel with Email
 app.put('/api/bookings/:id/cancel', async (req, res) => {
   const { id } = req.params;
+  console.log("Cancelling booking:", id); // DEBUG
+
   const { data, error } = await supabase
     .from('bookings')
     .update({ status: 'cancelled' })
@@ -346,7 +363,8 @@ app.put('/api/bookings/:id/cancel', async (req, res) => {
   if (error) return res.status(500).json({ error: error.message });
 
   if (data?.profiles?.email) {
-    sendEmail(
+    console.log("Sending cancellation email to:", data.profiles.email); // DEBUG
+    await sendEmail(
       data.profiles.email,
       'Cancellation Confirmed',
       `<p>${data.services.name} cancelled.</p>`
