@@ -38,7 +38,11 @@ export default function StylistSchedule({ onBack }) {
         const res = await fetch(`${API_URL}/api/bookings/${bookingId}/complete`, { method: 'PUT' });
         if(res.ok) {
             alert("Job Complete! Points awarded.");
-            window.location.reload();
+            
+            // FIXED: Update local state instead of window.location.reload()
+            setMyBookings(prev => prev.map(b => 
+              b.id === bookingId ? { ...b, status: 'completed' } : b
+            ));
         }
     } catch(err) { console.error(err); }
   };
