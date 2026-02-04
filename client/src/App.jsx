@@ -5,7 +5,7 @@ import BookingModal from './BookingModal';
 import AdminDashboard from './AdminDashboard';
 import Profile from './Profile';
 import StylistSchedule from './StylistSchedule';
-import API_URL from './config'; 
+import API_URL from './config';
 
 function App() {
   const { user, role, signOut } = useAuth();
@@ -18,7 +18,7 @@ function App() {
   useEffect(() => {
     if (user && view === 'customer') {
       setLoading(true);
-      fetch(`${API_URL}/api/services`) 
+      fetch(`${API_URL}/api/services`)
         .then((res) => res.json())
         .then((data) => {
           setServices(data);
@@ -33,7 +33,7 @@ function App() {
 
   // 2. HANDLE BOOKING
   const handleBooking = async (stylistId, startTime) => {
-    const response = await fetch(`${API_URL}/api/bookings`, { // 🌐 Updated
+    const response = await fetch(`${API_URL}/api/bookings`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -52,11 +52,13 @@ function App() {
     }
   };
 
+  // 3. SAFE LOGOUT
   const handleLogout = async () => {
     await signOut();
+    setView('customer'); // Reset view to prevent stuck state
   };
 
-  // 3. AUTH & VIEW GUARDS
+  // 4. AUTH GUARDS
   if (!user) return <Login />;
 
   if (view === 'admin') {
@@ -71,7 +73,7 @@ function App() {
     return <StylistSchedule onBack={() => setView('customer')} />;
   }
 
-  // 4. GROUP SERVICES
+  // 5. GROUP SERVICES
   const groupedServices = services.reduce((acc, service) => {
     const cat = service.category || 'Other Services';
     if (!acc[cat]) acc[cat] = [];
@@ -92,11 +94,12 @@ function App() {
 
           <div className="flex items-center gap-6">
             
+            {/* Profile Link (Safe Check Added) */}
             <button
               onClick={() => setView('profile')}
               className="text-xs uppercase tracking-widest text-gray-500 hover:text-black hidden md:block border-b border-transparent hover:border-black transition"
             >
-              {user.email}
+              {user?.email} 
             </button>
 
             {role === 'admin' && (
@@ -179,6 +182,7 @@ function App() {
         )}
       </main>
 
+      {/* Modals */}
       {selectedService && (
         <BookingModal
           service={selectedService}
