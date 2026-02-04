@@ -1,47 +1,57 @@
-import { useState, useEffect } from "react";
-import { useAuth } from "./AuthContext";
-import { supabase } from "./lib/supabase";
-import API_URL from './config'; 
+import { useState, useEffect } from 'react';
+import { useAuth } from './AuthContext';
+import { supabase } from './lib/supabase';
+import API_URL from './config';
 
 export default function Profile({ onBack }) {
   const { user, role } = useAuth();
   
-  const [newPassword, setNewPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState({ type: "", text: "" });
-  const [showPasswordForm, setShowPasswordForm] = useState(false);
-
-  //  APPOINTMENT STATE
+  // Tab State
+  const [activeTab, setActiveTab] = useState('appointments');
   const [appointments, setAppointments] = useState([]);
   const [loadingAppts, setLoadingAppts] = useState(true);
+  
+  // Password State
+  const [newPassword, setNewPassword] = useState('');
+  const [pwLoading, setPwLoading] = useState(false);
 
-  // 1. FETCH APPOINTMENTS
+  // Loyalty State
+  const [points, setPoints] = useState(0); 
+  const nextReward = 500;
+  const progress = Math.min((points / nextReward) * 100, 100);
+
+  // 1. Fetch Data on Load
   useEffect(() => {
     if (user?.id) {
-      fetch(`${API_URL}/api/bookings/customer/${user.id}`) // 🌐 Updated
-        .then((res) => res.json())
-        .then((data) => {
+      // Fetch Appointments
+      fetch(`${API_URL}/api/bookings/customer/${user.id}`)
+        .then(res => res.json())
+        .then(data => {
           setAppointments(data);
           setLoadingAppts(false);
         })
-        .catch((err) => {
+        .catch(err => {
           console.error("Error fetching bookings:", err);
           setLoadingAppts(false);
         });
+
+      // Fetch Real Points
+      supabase.from('profiles').select('loyalty_points').eq('id', user.id).single()
+        .then(({ data }) => { if(data) setPoints(data.loyalty_points || 0); });
     }
   }, [user]);
 
-  // 2. HANDLE CANCELLATION
+  // 2. Cancel Logic
   const handleCancel = async (bookingId) => {
     if (!confirm("Are you sure you want to cancel this appointment?")) return;
 
     try {
-      const res = await fetch(`${API_URL}/api/bookings/${bookingId}/cancel`, { // 🌐 Updated
+      const res = await fetch(`${API_URL}/api/bookings/${bookingId}/cancel`, {
         method: 'PUT'
       });
       
       if (res.ok) {
-        alert("Booking cancelled.");
+        alert("Appointment cancelled successfully.");
         setAppointments(prev => prev.filter(b => b.id !== bookingId));
       } else {
         alert("Failed to cancel.");
@@ -51,128 +61,167 @@ export default function Profile({ onBack }) {
     }
   };
 
+  // 3. Password Logic (Fixed - No AbortError)
   const handlePasswordChange = async (e) => {
     e.preventDefault();
-    setLoading(true);
-    setMessage({ type: "", text: "" });
-
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error("Request timed out")), 10000);
-    });
-
+    setPwLoading(true);
+    
     try {
-      if (!supabase) throw new Error("Supabase client not initialized");
-      const result = await Promise.race([
-        supabase.auth.updateUser({ password: newPassword }),
-        timeoutPromise,
-      ]);
-      const { error } = result;
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      
       if (error) {
-        setMessage({ type: "error", text: error.message });
+        alert("Error: " + error.message);
       } else {
-        setMessage({ type: "success", text: "Password updated successfully!" });
-        setNewPassword("");
-        setShowPasswordForm(false);
+        alert("Password updated successfully!");
+        setNewPassword('');
       }
     } catch (err) {
-      setMessage({ type: "error", text: err.message || "An unexpected error occurred." });
+      console.error(err);
+      alert("An unexpected error occurred.");
     } finally {
-      setLoading(false);
+      setPwLoading(false);
     }
   };
 
-  const firstName = user?.email?.split("@")[0] || "Guest";
-  const displayName = firstName.charAt(0).toUpperCase() + firstName.slice(1);
-
   return (
-    <div className="min-h-screen bg-white font-sans text-gray-900 tracking-wide">
-      <nav className="fixed w-full bg-white/95 backdrop-blur-sm border-b border-gray-100 z-50">
-        <div className="max-w-6xl mx-auto px-6 h-20 flex items-center justify-between">
-          <div className="text-xl md:text-2xl font-light uppercase tracking-[0.2em]">Hair By Amnesia</div>
-          <button onClick={onBack} className="text-xs font-bold uppercase tracking-widest hover:text-gray-500 transition flex items-center gap-2"><span>←</span> Back to Menu</button>
+    <div className="min-h-screen bg-gray-50 p-6 font-sans">
+      <div className="max-w-5xl mx-auto">
+        
+        {/* Header */}
+        <div className="flex justify-between items-end mb-8">
+           <div>
+             <h1 className="text-3xl font-light uppercase tracking-widest text-gray-800">My Account</h1>
+             <p className="text-sm text-gray-500 mt-1">{user?.email}</p>
+           </div>
+           <button onClick={onBack} className="text-sm underline hover:text-red-500">Back to Home</button>
         </div>
-      </nav>
 
-      <main className="pt-32 pb-20 px-6">
-        <div className="max-w-md mx-auto">
-          <div className="text-center mb-12">
-            <h1 className="text-4xl md:text-5xl font-light mb-3">Welcome back, {displayName}</h1>
-            <div className="w-12 h-0.5 bg-black mx-auto mt-6"></div>
-          </div>
+        {/* Tabs */}
+        <div className="flex gap-6 border-b border-gray-200 mb-8">
+          <button 
+            onClick={() => setActiveTab('appointments')}
+            className={`pb-3 text-sm font-bold uppercase tracking-widest transition ${activeTab === 'appointments' ? 'border-b-2 border-black text-black' : 'text-gray-400 hover:text-gray-600'}`}
+          >
+            My Appointments
+          </button>
+          <button 
+            onClick={() => setActiveTab('settings')}
+            className={`pb-3 text-sm font-bold uppercase tracking-widest transition ${activeTab === 'settings' ? 'border-b-2 border-black text-black' : 'text-gray-400 hover:text-gray-600'}`}
+          >
+            Profile & Rewards
+          </button>
+        </div>
 
-          <div className="border border-gray-200 p-6 mb-8">
-            <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-6">My Appointments</h3>
-            {loadingAppts ? (
-              <p className="text-sm text-gray-400 italic">Loading bookings...</p>
-            ) : appointments.length === 0 ? (
-              <div className="text-center py-6">
-                <p className="text-sm text-gray-500 mb-4">No upcoming appointments.</p>
-                <button onClick={onBack} className="text-xs underline font-bold uppercase">Book one now</button>
-              </div>
-            ) : (
-              <div className="divide-y divide-gray-100">
-                {appointments.map(appt => {
-                  const start = new Date(appt.start_time);
-                  const isPast = new Date() > start;
-                  return (
-                    <div key={appt.id} className="py-4">
-                      <div className="flex justify-between items-start mb-2">
-                        <div>
-                          <p className="font-bold text-lg">{appt.services?.name}</p>
-                          <p className="text-xs text-gray-500 uppercase tracking-wider">{start.toLocaleDateString()} at {start.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
-                          <p className="text-xs text-gray-400 mt-1">with {appt.stylists?.name} • £{appt.services?.base_price}</p>
+        {/* TAB 1: APPOINTMENTS */}
+        {activeTab === 'appointments' && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 min-h-[400px]">
+             {loadingAppts ? (
+               <div className="p-10 text-center text-gray-400">Loading history...</div>
+             ) : appointments.length === 0 ? (
+               <div className="p-16 text-center">
+                 <div className="text-4xl mb-4">📅</div>
+                 <h3 className="text-lg font-bold text-gray-700">No Upcoming Bookings</h3>
+                 <p className="text-gray-500 text-sm mb-6">You are free! Time to treat yourself?</p>
+                 <button onClick={onBack} className="bg-black text-white px-6 py-3 text-xs font-bold uppercase rounded hover:bg-gray-800 transition">
+                   Book New Appointment
+                 </button>
+               </div>
+             ) : (
+               <div className="divide-y divide-gray-100">
+                 {appointments.map(appt => {
+                   const start = new Date(appt.start_time);
+                   const isPast = new Date() > start;
+                   
+                   return (
+                     <div key={appt.id} className="p-6 flex flex-col md:flex-row justify-between items-center hover:bg-gray-50 transition">
+                        <div className="flex items-center gap-6 w-full md:w-auto mb-4 md:mb-0">
+                           <div className="bg-gray-100 p-4 rounded text-center min-w-[80px]">
+                              <span className="block text-xs font-bold uppercase text-gray-500">{start.toLocaleString('default', { month: 'short' })}</span>
+                              <span className="block text-2xl font-bold text-black">{start.getDate()}</span>
+                           </div>
+                           <div>
+                              <h3 className="font-bold text-gray-800 text-lg">{appt.services?.name || 'Service'}</h3>
+                              <p className="text-sm text-gray-500">with {appt.stylists?.name || 'Stylist'}</p>
+                              <p className="text-xs font-mono mt-1 text-gray-400">
+                                {start.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} • £{appt.services?.base_price}
+                              </p>
+                           </div>
                         </div>
-                        {!isPast ? (
-                          <button onClick={() => handleCancel(appt.id)} className="text-[10px] uppercase font-bold text-red-500 border border-red-100 px-2 py-1 hover:bg-red-50 transition">Cancel</button>
-                        ) : (
-                          <span className="text-[10px] uppercase font-bold text-gray-300 border border-gray-100 px-2 py-1">Completed</span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+                        <div>
+                          {isPast || appt.status === 'completed' ? (
+                             <span className="bg-gray-100 text-gray-500 text-[10px] font-bold px-3 py-1 rounded uppercase border border-gray-200">Completed</span>
+                          ) : (
+                             <button 
+                               onClick={() => handleCancel(appt.id)}
+                               className="text-red-500 border border-red-200 bg-white hover:bg-red-50 px-4 py-2 rounded text-xs font-bold uppercase tracking-wide transition"
+                             >
+                               Cancel Booking
+                             </button>
+                          )}
+                        </div>
+                     </div>
+                   )
+                 })}
+               </div>
+             )}
           </div>
+        )}
 
-          <div className="border border-gray-200 p-6 mb-8">
-            <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-6">Account Details</h3>
-            <div className="space-y-4">
-              <div className="flex justify-between items-center py-3 border-b border-gray-100">
-                <span className="text-sm text-gray-500">Email</span>
-                <span className="text-sm font-mono">{user?.email}</span>
-              </div>
-              <div className="flex justify-between items-center py-3 border-b border-gray-100">
-                <span className="text-sm text-gray-500">Role</span>
-                <span className="text-xs uppercase tracking-widest bg-gray-100 px-3 py-1">{role}</span>
-              </div>
-              <div className="flex justify-between items-center py-3">
-                <span className="text-sm text-gray-500">Password</span>
-                <button onClick={() => { setShowPasswordForm(!showPasswordForm); setMessage({ type: "", text: "" }); setNewPassword(""); }} className="text-xs uppercase tracking-widest underline hover:no-underline">{showPasswordForm ? "Cancel" : "Change"}</button>
-              </div>
-              {showPasswordForm && (
-                <form onSubmit={handlePasswordChange} className="pt-4 space-y-4">
-                  {message.text && <div className={`p-3 text-xs ${message.type === "error" ? "bg-red-50 text-red-700" : "bg-green-50 text-green-700"}`}>{message.text}</div>}
-                  <input type="password" required minLength={6} placeholder="New password (min 6 characters)" className="w-full border border-gray-200 p-3 text-sm focus:outline-none focus:border-black transition" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} disabled={loading} />
-                  <button type="submit" disabled={loading || newPassword.length < 6} className="w-full bg-black text-white text-xs uppercase tracking-widest py-3 hover:bg-gray-800 transition disabled:bg-gray-300">{loading ? "Updating..." : "Update Password"}</button>
+        {/* TAB 2: SETTINGS & LOYALTY */}
+        {activeTab === 'settings' && (
+          <div className="grid md:grid-cols-2 gap-8 animate-fade-in">
+             {/* Security Form */}
+             <div className="bg-white p-8 rounded-lg shadow-sm border border-gray-200 h-fit">
+                <h3 className="font-bold text-sm text-gray-800 mb-6 uppercase tracking-widest">Security Settings</h3>
+                <form onSubmit={handlePasswordChange} className="space-y-4">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Update Password</label>
+                    <input 
+                      type="password" required minLength={6} placeholder="New Password"
+                      className="w-full border p-2 rounded bg-gray-50 text-sm"
+                      value={newPassword} onChange={e => setNewPassword(e.target.value)}
+                    />
+                  </div>
+                  <button disabled={pwLoading} className="w-full bg-black text-white p-3 text-xs font-bold uppercase tracking-widest hover:bg-gray-800 transition disabled:opacity-50">
+                    {pwLoading ? 'Updating...' : 'Save Changes'}
+                  </button>
                 </form>
-              )}
-            </div>
-          </div>
+                
+                <div className="mt-8 pt-6 border-t border-gray-100">
+                  <p className="text-xs font-bold uppercase text-gray-400 mb-2">Account Role</p>
+                  <span className="bg-blue-100 text-blue-800 text-[10px] px-2 py-1 rounded uppercase font-bold">
+                    {role || 'Customer'}
+                  </span>
+                </div>
+             </div>
 
-          <div>
-            <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-6">Quick Actions</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <button onClick={onBack} className="border border-black bg-black text-white text-xs uppercase tracking-widest py-4 hover:bg-gray-800 transition">Book Now</button>
-              <button onClick={onBack} className="border border-gray-200 text-xs uppercase tracking-widest py-4 hover:border-black transition">View Services</button>
-            </div>
-          </div>
-        </div>
-      </main>
+             {/* Loyalty Card */}
+             <div className="bg-black text-white p-8 rounded-lg shadow-xl relative overflow-hidden flex flex-col justify-between h-[300px]">
+                <div className="absolute -top-20 -right-20 w-64 h-64 bg-gray-800 rounded-full opacity-50 blur-3xl"></div>
+                
+                <div className="relative z-10">
+                  <h2 className="text-xl font-light uppercase tracking-[0.2em] mb-1">Amnesia Rewards</h2>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Gold Member</p>
+                </div>
 
-      <footer className="border-t border-gray-100 py-8">
-        <div className="max-w-4xl mx-auto px-6 text-center"><p className="text-xs text-gray-400 uppercase tracking-widest">Hair By Amnesia © 2026</p></div>
-      </footer>
+                <div className="my-4 text-center relative z-10">
+                   <div className="text-5xl font-bold mb-2 tracking-tighter">{points}</div>
+                   <p className="text-xs uppercase tracking-widest text-gray-400">Current Balance</p>
+                </div>
+
+                <div className="relative z-10">
+                  <div className="w-full bg-gray-800 h-1.5 rounded-full overflow-hidden mb-4">
+                     <div style={{width: `${progress}%`}} className="bg-white h-full transition-all duration-1000"></div>
+                  </div>
+                  <button onClick={() => alert("Coming soon!")} className="w-full bg-white text-black py-2 text-xs font-bold uppercase rounded hover:bg-gray-200 transition">
+                     Redeem Voucher
+                  </button>
+                </div>
+             </div>
+          </div>
+        )}
+
+      </div>
     </div>
   );
 }
