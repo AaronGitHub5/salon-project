@@ -7,7 +7,7 @@ export default function Login() {
   // Form State
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [fullName, setFullName] = useState(''); // 🆕 New State
+  const [fullName, setFullName] = useState(''); 
   
   const [isSignUp, setIsSignUp] = useState(false);
   const [error, setError] = useState('');
@@ -20,13 +20,13 @@ export default function Login() {
     
     try {
       if (isSignUp) {
-        // Pass extra metadata (full_name) to Supabase
+        
         const { error } = await signUp({ 
           email, 
           password, 
           options: {
             data: {
-              full_name: fullName, // This saves to raw_user_meta_data
+              full_name: fullName, 
             },
           } 
         });
@@ -54,7 +54,7 @@ export default function Login() {
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           
-          {/* 🆕 Name Input - Only for Sign Up */}
+          {/*  Name Input - Only for Sign Up */}
           {isSignUp && (
             <input
               type="text"

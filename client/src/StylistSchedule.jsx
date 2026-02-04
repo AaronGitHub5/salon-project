@@ -39,7 +39,7 @@ export default function StylistSchedule({ onBack }) {
         if(res.ok) {
             alert("Job Complete! Points awarded.");
             
-            // FIXED: Update local state instead of window.location.reload()
+            
             setMyBookings(prev => prev.map(b => 
               b.id === bookingId ? { ...b, status: 'completed' } : b
             ));

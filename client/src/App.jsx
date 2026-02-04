@@ -14,11 +14,11 @@ function App() {
   const [selectedService, setSelectedService] = useState(null);
   const [view, setView] = useState('customer'); 
 
-  // Debugging: Check if role is arriving correctly
+  // Debugging
   console.log("Current User:", user?.email);
   console.log("Current Role:", role);
 
-  // 1. FETCH DATA 
+  // FETCH DATA 
   useEffect(() => {
     if (user && view === 'customer') {
       setLoading(true);
@@ -35,7 +35,7 @@ function App() {
     }
   }, [user, view]);
 
-  // 2. HANDLE BOOKING
+  //  HANDLE BOOKING
   const handleBooking = async (stylistId, startTime) => {
     const response = await fetch(`${API_URL}/api/bookings`, {
       method: 'POST',
@@ -56,13 +56,13 @@ function App() {
     }
   };
 
-  // 3. LOGOUT
+  //  LOGOUT
   const handleLogout = async () => {
     await signOut();
     window.location.reload(); 
   };
 
-  // 4. AUTH GUARDS
+  //  AUTH GUARDS
   if (!user) return <Login />;
 
   if (view === 'admin') {
@@ -77,7 +77,7 @@ function App() {
     return <StylistSchedule onBack={() => setView('customer')} />;
   }
 
-  // 5. GROUP SERVICES
+  //  GROUP SERVICES
   const groupedServices = services.reduce((acc, service) => {
     const cat = service.category || 'Other Services';
     if (!acc[cat]) acc[cat] = [];

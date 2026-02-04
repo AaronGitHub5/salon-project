@@ -18,14 +18,14 @@ const supabase = createClient(
 );
 
 //
-// EMAIL SYSTEM (Firewall-Proof Mode)
+// EMAIL SYSTEM 
 //
 let transporter;
 
 async function initMail() {
   try {
     transporter = nodemailer.createTransport({
-      jsonTransport: true, // Output to console instead of actual sending
+      jsonTransport: true, 
     });
     console.log('📧 Mail System Ready (Log Mode)');
   } catch (err) {
@@ -225,7 +225,7 @@ app.post('/api/bookings', async (req, res) => {
 
     if (error) throw error;
 
-    // Email Logic - With explicit debugging
+    // Email Logic 
     console.log("Fetching profile for email..."); // DEBUG
     
     const { data: profile } = await supabase
