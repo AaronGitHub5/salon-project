@@ -1,162 +1,136 @@
-import { createContext, useState, useEffect, useContext } from 'react';
+import { createContext, useState, useEffect, useContext, useRef } from 'react';
 import { supabase } from './lib/supabase';
 
 const AuthContext = createContext();
 
-function clearCorruptedStorage() {
-  try {
-    Object.keys(localStorage).forEach((key) => {
-      if (key.startsWith('sb-')) {
-        localStorage.removeItem(key);
-      }
-    });
-  } catch (e) {
-    localStorage.clear();
-  }
+// Force clear on first visit with new code
+const AUTH_VERSION = '2';
+
+function nukeStorage() {
+  Object.keys(localStorage).forEach((key) => {
+    if (key.startsWith('sb-')) localStorage.removeItem(key);
+  });
+}
+
+// Check if ANY session exists before React even renders
+function hasExistingSession() {
+  return Object.keys(localStorage).some((key) => key.startsWith('sb-'));
 }
 
 export function AuthProvider({ children }) {
+  // If no session in storage, skip loading entirely
   const [user, setUser] = useState(null);
   const [role, setRole] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(hasExistingSession());
+  const isSigningIn = useRef(false);
+
+  // One-time version check - clears old corrupted data
+  useEffect(() => {
+    const storedVersion = localStorage.getItem('auth_version');
+    if (storedVersion !== AUTH_VERSION) {
+      console.log('New auth version - clearing old data');
+      nukeStorage();
+      localStorage.setItem('auth_version', AUTH_VERSION);
+      setLoading(false);
+    }
+  }, []);
 
   const fetchRole = async (userId) => {
     try {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('profiles')
         .select('role')
         .eq('id', userId)
         .single();
-
-      if (error || !data) return 'customer';
-      return data.role;
-    } catch (err) {
+      return data?.role || 'customer';
+    } catch {
       return 'customer';
     }
   };
 
   useEffect(() => {
-    let isMounted = true;
+    if (!hasExistingSession()) {
+      setLoading(false);
+      return;
+    }
 
-    const initSession = async () => {
+    let mounted = true;
+
+    const init = async () => {
       try {
-        const {
-          data: { session },
-          error,
-        } = await supabase.auth.getSession();
+        const { data: { session } } = await supabase.auth.getSession();
 
-        if (!isMounted) return;
-
-        if (error) throw error;
+        if (!mounted) return;
 
         if (session?.user) {
-          const { data: userData, error: userError } =
-            await supabase.auth.getUser();
-
-          if (userError || !userData?.user) {
-            throw new Error('Invalid session');
-          }
-
-          setUser(session.user);
           const userRole = await fetchRole(session.user.id);
-          if (isMounted) setRole(userRole);
+          setUser(session.user);
+          setRole(userRole);
         }
-      } catch (err) {
-        console.error('Session invalid, clearing...', err);
-        clearCorruptedStorage();
-        await supabase.auth.signOut().catch(() => {});
-        if (isMounted) {
-          setUser(null);
-          setRole(null);
-        }
+      } catch {
+        nukeStorage();
       } finally {
-        if (isMounted) setLoading(false);
+        if (mounted) setLoading(false);
       }
     };
 
-    const timeout = setTimeout(() => {
-      if (isMounted && loading) {
-        console.warn('Auth timeout - forcing login screen');
-        clearCorruptedStorage();
-        setUser(null);
-        setRole(null);
-        setLoading(false);
-      }
-    }, 5000);
+    init();
 
-    initSession();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (!mounted || isSigningIn.current) return;
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!isMounted) return;
+        if (!session) {
+          setUser(null);
+          setRole(null);
+          return;
+        }
 
-      if (event === 'SIGNED_OUT' || !session) {
-        setUser(null);
-        setRole(null);
-        setLoading(false);
-        return;
-      }
-
-      if (session?.user) {
-        setUser(session.user);
-        // Always fetch fresh role on auth change
         const userRole = await fetchRole(session.user.id);
-        if (isMounted) setRole(userRole);
+        setUser(session.user);
+        setRole(userRole);
       }
-      setLoading(false);
-    });
+    );
 
     return () => {
-      isMounted = false;
-      clearTimeout(timeout);
+      mounted = false;
       subscription.unsubscribe();
     };
   }, []);
 
+  const signIn = async (credentials) => {
+    isSigningIn.current = true;
+    setUser(null);
+    setRole(null);
+
+    const { data, error } = await supabase.auth.signInWithPassword(credentials);
+
+    if (data?.user) {
+      const userRole = await fetchRole(data.user.id);
+      setUser(data.user);
+      setRole(userRole);
+    }
+
+    isSigningIn.current = false;
+    return { data, error };
+  };
+
   const signOut = async () => {
     setUser(null);
     setRole(null);
-    clearCorruptedStorage();
+    nukeStorage();
     await supabase.auth.signOut().catch(() => {});
   };
 
-  // FIXED: Sign in now clears old state and fetches fresh role
-  const signIn = async (data) => {
-    // Clear old user/role FIRST
-    setUser(null);
-    setRole(null);
-
-    const result = await supabase.auth.signInWithPassword(data);
-
-    // If sign in succeeded, immediately set user and fetch role
-    if (result.data?.user && !result.error) {
-      setUser(result.data.user);
-      const freshRole = await fetchRole(result.data.user.id);
-      setRole(freshRole);
-    }
-
-    return result;
-  };
-
-  // FIXED: Sign up also handles role properly
-  const signUp = async (data) => {
-    setUser(null);
-    setRole(null);
-    return supabase.auth.signUp(data);
-  };
-
-  const value = {
-    signUp,
-    signIn,
-    signOut,
-    user,
-    role,
-  };
+  if (loading) {
+    return null; // Brief flash, not 5 seconds
+  }
 
   return (
-    <AuthContext.Provider value={value}>
-      {!loading && children}
+    <AuthContext.Provider
+      value={{ user, role, signIn, signUp: (d) => supabase.auth.signUp(d), signOut }}
+    >
+      {children}
     </AuthContext.Provider>
   );
 }
