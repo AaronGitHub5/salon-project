@@ -5,19 +5,20 @@ import BookingModal from './BookingModal';
 import AdminDashboard from './AdminDashboard';
 import Profile from './Profile';
 import StylistSchedule from './StylistSchedule';
+import API_URL from './config'; 
 
 function App() {
   const { user, role, signOut } = useAuth();
   const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedService, setSelectedService] = useState(null);
-  const [view, setView] = useState('customer'); // 'customer', 'admin', 'profile', 'stylist'
+  const [view, setView] = useState('customer'); 
 
-  // 1. FETCH DATA (Only if logged in and in customer view)
+  // 1. FETCH DATA 
   useEffect(() => {
     if (user && view === 'customer') {
       setLoading(true);
-      fetch('http://localhost:5000/api/services')
+      fetch(`${API_URL}/api/services`) 
         .then((res) => res.json())
         .then((data) => {
           setServices(data);
@@ -32,7 +33,7 @@ function App() {
 
   // 2. HANDLE BOOKING
   const handleBooking = async (stylistId, startTime) => {
-    const response = await fetch('http://localhost:5000/api/bookings', {
+    const response = await fetch(`${API_URL}/api/bookings`, { // 🌐 Updated
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -44,7 +45,7 @@ function App() {
     });
 
     if (response.ok) {
-      alert('Booking Confirmed!');
+      alert('Booking Confirmed! Check your email.');
       setSelectedService(null);
     } else {
       alert('Failed to book.');
@@ -79,11 +80,9 @@ function App() {
   }, {});
   const categories = Object.keys(groupedServices);
 
-  // 5. MAIN RENDER
   return (
     <div className="min-h-screen bg-white font-sans text-gray-900 tracking-wide selection:bg-black selection:text-white">
       
-    
       {/* Navigation */}
       <nav className="fixed w-full bg-white/95 backdrop-blur-sm border-b border-gray-100 z-40 transition-all duration-300">
         <div className="max-w-6xl mx-auto px-6 h-20 flex items-center justify-between">
@@ -93,7 +92,6 @@ function App() {
 
           <div className="flex items-center gap-6">
             
-            {/* Profile Link */}
             <button
               onClick={() => setView('profile')}
               className="text-xs uppercase tracking-widest text-gray-500 hover:text-black hidden md:block border-b border-transparent hover:border-black transition"
@@ -101,7 +99,6 @@ function App() {
               {user.email}
             </button>
 
-            {/* Admin Link (Only visible if Admin) */}
             {role === 'admin' && (
               <button
                 onClick={() => setView('admin')}
@@ -111,7 +108,6 @@ function App() {
               </button>
             )}
 
-            {/* Stylist Link (Only visible if Stylist) */}
             {role === 'stylist' && (
               <button
                 onClick={() => setView('stylist')}
@@ -183,7 +179,6 @@ function App() {
         )}
       </main>
 
-      {/* Booking Modal Popup */}
       {selectedService && (
         <BookingModal
           service={selectedService}

@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
+const nodemailer = require('nodemailer'); // 📧 Import Mailer
 
 const app = express();
 const port = 5000;
@@ -16,18 +17,57 @@ const supabase = createClient(
   process.env.SUPABASE_KEY
 );
 
+// ---------------------------------------------------------
+// 📧 EMAIL SYSTEM (Ethereal - Fake Inbox for Demo)
+// ---------------------------------------------------------
+let transporter;
+
+async function initMail() {
+  try {
+    const testAccount = await nodemailer.createTestAccount();
+    transporter = nodemailer.createTransport({
+      host: 'smtp.ethereal.email',
+      port: 587,
+      secure: false,
+      auth: {
+        user: testAccount.user,
+        pass: testAccount.pass,
+      },
+    });
+    console.log('📧 Mail System Ready (Ethereal Dev Mode)');
+  } catch (err) {
+    console.error('Mail setup failed:', err);
+  }
+}
+initMail();
+
+async function sendEmail(to, subject, html) {
+  if (!transporter) return;
+  try {
+    const info = await transporter.sendMail({
+      from: '"Hair By Amnesia" <no-reply@amnesia.com>',
+      to: to,
+      subject: subject,
+      html: html,
+    });
+    console.log(`📨 Email Sent! Preview URL: ${nodemailer.getTestMessageUrl(info)}`);
+  } catch (err) {
+    console.error('Error sending email:', err);
+  }
+}
+
 // =============================================
 // UTILITY FUNCTIONS
 // =============================================
 
-// Check for booking conflicts (FR-04)
 async function checkBookingConflict(stylistId, startTime, endTime, excludeBookingId = null) {
   let query = supabase
     .from('bookings')
     .select('id')
     .eq('stylist_id', stylistId)
     .lt('start_time', endTime)
-    .gt('end_time', startTime);
+    .gt('end_time', startTime)
+    .neq('status', 'cancelled');
 
   if (excludeBookingId) {
     query = query.neq('id', excludeBookingId);
@@ -38,22 +78,17 @@ async function checkBookingConflict(stylistId, startTime, endTime, excludeBookin
   return data.length > 0;
 }
 
-// 🆕 UPDATED PRICING LOGIC: Friday (5) & Saturday (6) are PEAK
 function calculatePrice(basePrice, stylistMultiplier, bookingTime) {
   const date = new Date(bookingTime);
-  const dayOfWeek = date.getDay(); // 0 = Sun, 1 = Mon, ..., 5 = Fri, 6 = Sat
+  const dayOfWeek = date.getDay(); 
   const hour = date.getHours();
 
   let price = basePrice * stylistMultiplier;
-
-  // Peak Rules:
-  // 1. Friday or Saturday
-  // 2. Any day after 5 PM (17:00)
   const isPeakDay = dayOfWeek === 5 || dayOfWeek === 6; 
   const isEvening = hour >= 17;
 
   if (isPeakDay || isEvening) {
-    price *= 1.15; // +15% Surcharge
+    price *= 1.15; 
   }
 
   return Math.round(price * 100) / 100;
@@ -67,7 +102,7 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// --- SERVICES ROUTES ---
+// --- SERVICES ---
 app.get('/api/services', async (req, res) => {
   const { data, error } = await supabase.from('services').select('*').order('category').order('name');
   if (error) return res.status(500).json({ error: error.message });
@@ -76,9 +111,7 @@ app.get('/api/services', async (req, res) => {
 
 app.post('/api/services', async (req, res) => {
   const { name, base_price, duration_minutes, category } = req.body;
-  const { data, error } = await supabase.from('services').insert([{ 
-    name, base_price, duration_minutes, category 
-  }]).select().single();
+  const { data, error } = await supabase.from('services').insert([{ name, base_price, duration_minutes, category }]).select().single();
   if (error) return res.status(500).json({ error: error.message });
   res.status(201).json(data);
 });
@@ -86,9 +119,7 @@ app.post('/api/services', async (req, res) => {
 app.put('/api/services/:id', async (req, res) => {
   const { id } = req.params;
   const { name, base_price, duration_minutes, category } = req.body;
-  const { data, error } = await supabase.from('services').update({ 
-    name, base_price, duration_minutes, category 
-  }).eq('id', id).select().single();
+  const { data, error } = await supabase.from('services').update({ name, base_price, duration_minutes, category }).eq('id', id).select().single();
   if (error) return res.status(500).json({ error: error.message });
   res.json(data);
 });
@@ -100,15 +131,14 @@ app.delete('/api/services/:id', async (req, res) => {
   res.json({ message: 'Service Deleted' });
 });
 
-// --- STYLISTS ROUTES ---
+// --- STYLISTS ---
 app.get('/api/stylists', async (req, res) => {
   const { data, error } = await supabase.from('stylists').select('*').order('name');
   if (error) return res.status(500).json({ error: error.message });
   res.json(data);
 });
 
-// --- BOOKINGS ROUTES ---
-// Admin View: All bookings
+// --- BOOKINGS (Booking Engine) ---
 app.get('/api/bookings', async (req, res) => {
   const { data, error } = await supabase.from('bookings').select(`
     *, services(name, base_price), stylists(name), profiles(full_name, email), guests(full_name, phone_number, email)
@@ -117,18 +147,16 @@ app.get('/api/bookings', async (req, res) => {
   res.json(data);
 });
 
-// Customer Booking
 app.post('/api/bookings', async (req, res) => {
   const { customer_id, service_id, stylist_id, start_time } = req.body;
   
   try {
-    const { data: service } = await supabase.from('services').select('duration_minutes, base_price').eq('id', service_id).single();
-    const { data: stylist } = await supabase.from('stylists').select('price_multiplier, name').eq('id', stylist_id).single();
+    const { data: service } = await supabase.from('services').select('name, duration_minutes, base_price').eq('id', service_id).single();
+    const { data: stylist } = await supabase.from('stylists').select('name, price_multiplier').eq('id', stylist_id).single();
     
     const start = new Date(start_time);
     const end = new Date(start.getTime() + service.duration_minutes * 60000);
 
-    // Conflict Check
     if (await checkBookingConflict(stylist_id, start.toISOString(), end.toISOString())) {
       return res.status(409).json({ error: 'Time slot unavailable.' });
     }
@@ -141,127 +169,153 @@ app.post('/api/bookings', async (req, res) => {
 
     if (error) throw error;
 
+    // 📧 SEND EMAIL (CONFIRMATION)
+    const { data: profile } = await supabase.from('profiles').select('email, full_name').eq('id', customer_id).single();
+    
+    if (profile?.email) {
+      const emailHtml = `
+        <h1>Booking Confirmed!</h1>
+        <p>Hi ${profile.full_name || 'Customer'},</p>
+        <p>Your appointment for <strong>${service.name}</strong> with <strong>${stylist.name}</strong> is confirmed.</p>
+        <p><strong>Time:</strong> ${start.toLocaleString()}</p>
+        <p><strong>Price:</strong> £${finalPrice}</p>
+      `;
+      sendEmail(profile.email, 'Booking Confirmed - Amnesia', emailHtml);
+    }
+
     res.status(201).json({ message: 'Booking Confirmed!', booking: data, price: finalPrice });
 
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+  } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-// Guest/Shadow Booking (Admin Feature)
 app.post('/api/bookings/guest', async (req, res) => {
   const { guestName, guestPhone, guestEmail, serviceId, stylistId, startTime } = req.body;
   try {
-    // 1. Create Guest
     const { data: guest } = await supabase.from('guests').insert([{ full_name: guestName, phone_number: guestPhone, email: guestEmail }]).select().single();
-    
-    // 2. Calculate details
     const { data: service } = await supabase.from('services').select('duration_minutes, base_price').eq('id', serviceId).single();
     const { data: stylist } = await supabase.from('stylists').select('price_multiplier').eq('id', stylistId).single();
 
     const start = new Date(startTime);
     const end = new Date(start.getTime() + service.duration_minutes * 60000);
 
-    // 3. Conflict Check
     if (await checkBookingConflict(stylistId, start.toISOString(), end.toISOString())) {
-      await supabase.from('guests').delete().eq('id', guest.id); // Cleanup guest if booking fails
+      await supabase.from('guests').delete().eq('id', guest.id);
       return res.status(409).json({ error: 'Time slot unavailable.' });
     }
 
     const finalPrice = calculatePrice(service.base_price, stylist.price_multiplier, startTime);
 
-    // 4. Create Booking
     const { data: booking } = await supabase.from('bookings').insert([{
       guest_id: guest.id, service_id: serviceId, stylist_id: stylistId, start_time: start, end_time: end, status: 'confirmed'
     }]).select().single();
 
-    res.status(201).json({ message: 'Shadow Booking Created', guest, booking, price: finalPrice });
+    // 📧 SEND EMAIL (GUEST)
+    if (guestEmail) {
+      sendEmail(guestEmail, 'Appointment Confirmed', `<h1>Confirmed</h1><p>See you at ${start.toLocaleString()}</p>`);
+    }
 
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+    res.status(201).json({ message: 'Shadow Booking Created', guest, booking, price: finalPrice });
+  } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-// --- AVAILABILITY ROUTES (FR-03) ---
+// --- CUSTOMER PORTAL ---
+app.get('/api/bookings/customer/:id', async (req, res) => {
+  const { id } = req.params;
+  const { data, error } = await supabase.from('bookings')
+    .select(`id, start_time, end_time, status, services (name, duration_minutes, base_price), stylists (name)`)
+    .eq('customer_id', id).neq('status', 'cancelled').order('start_time', { ascending: true });
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data);
+});
+
+// 📧 UPDATED: Cancel with Email
+app.put('/api/bookings/:id/cancel', async (req, res) => {
+  const { id } = req.params;
+  
+  // 1. Perform Update
+  const { data, error } = await supabase
+    .from('bookings')
+    .update({ status: 'cancelled' })
+    .eq('id', id)
+    .select(`
+      *, 
+      profiles(email, full_name), 
+      services(name)
+    `)
+    .single();
+
+  if (error) return res.status(500).json({ error: error.message });
+
+  // 2. Send Cancellation Email
+  if (data?.profiles?.email) {
+    const emailHtml = `
+      <h2>Appointment Cancelled</h2>
+      <p>Hi ${data.profiles.full_name || 'there'},</p>
+      <p>Your appointment for <strong>${data.services?.name}</strong> has been cancelled as requested.</p>
+    `;
+    sendEmail(data.profiles.email, 'Cancellation Confirmed', emailHtml);
+  }
+
+  res.json({ message: 'Booking cancelled', data });
+});
+
+// --- AVAILABILITY ---
 app.get('/api/availability/:stylistId/:date', async (req, res) => {
   const { stylistId, date } = req.params;
   const { serviceId } = req.query;
-
   try {
     let serviceDuration = 60;
     if (serviceId) {
       const { data: s } = await supabase.from('services').select('duration_minutes').eq('id', serviceId).single();
       if (s) serviceDuration = s.duration_minutes;
     }
-
     const dayOfWeek = new Date(date).getDay();
-    // Fetch Schedule (Shift)
     const { data: shift } = await supabase.from('shifts').select('start_time, end_time').eq('stylist_id', stylistId).eq('day_of_week', dayOfWeek).single();
 
     if (!shift) return res.json({ available: false, slots: [], message: 'Stylist off duty' });
 
-    // Fetch Existing Bookings
     const dayStart = new Date(date); dayStart.setHours(0,0,0,0);
     const dayEnd = new Date(date); dayEnd.setHours(23,59,59,999);
 
     const { data: bookings } = await supabase.from('bookings').select('start_time, end_time')
-      .eq('stylist_id', stylistId).gte('start_time', dayStart.toISOString()).lte('start_time', dayEnd.toISOString());
+      .eq('stylist_id', stylistId).gte('start_time', dayStart.toISOString()).lte('start_time', dayEnd.toISOString()).neq('status', 'cancelled');
 
-    // Generate Slots
     const slots = [];
     const [sH, sM] = shift.start_time.split(':');
     const [eH, eM] = shift.end_time.split(':');
-    
     const slotStart = new Date(date); slotStart.setHours(sH, sM, 0, 0);
     const shiftEnd = new Date(date); shiftEnd.setHours(eH, eM, 0, 0);
 
-    // 30-min intervals
     while (slotStart.getTime() + serviceDuration * 60000 <= shiftEnd.getTime()) {
       const slotEnd = new Date(slotStart.getTime() + serviceDuration * 60000);
-      
-      // Is there a collision?
       const isBooked = bookings?.some(b => {
         const bStart = new Date(b.start_time);
         const bEnd = new Date(b.end_time);
         return slotStart < bEnd && slotEnd > bStart;
       });
-
-      if (!isBooked) {
-        slots.push({ start: slotStart.toISOString() });
-      }
+      if (!isBooked) slots.push({ start: slotStart.toISOString() });
       slotStart.setMinutes(slotStart.getMinutes() + 30);
     }
-
     res.json({ available: true, slots });
-
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+  } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-// --- ANALYTICS ROUTES (FR-07) ---
+// --- ANALYTICS ---
 app.get('/api/analytics', async (req, res) => {
   try {
     const today = new Date();
     const lastMonth = new Date(); lastMonth.setMonth(today.getMonth() - 1);
-    
-    const { data: bookings } = await supabase.from('bookings')
-      .select('start_time, services(base_price), stylists(name)')
-      .gte('start_time', lastMonth.toISOString());
+    const { data: bookings } = await supabase.from('bookings').select('start_time, services(base_price), stylists(name)').gte('start_time', lastMonth.toISOString());
 
     const totalRevenue = bookings.reduce((sum, b) => sum + (b.services?.base_price || 0), 0);
-    
     const stylistCounts = {};
     const dailyData = {};
-
     bookings.forEach(b => {
       const name = b.stylists?.name || 'Unknown';
       stylistCounts[name] = (stylistCounts[name] || 0) + 1;
-      
       const dateStr = b.start_time.split('T')[0];
       dailyData[dateStr] = (dailyData[dateStr] || 0) + 1;
     });
-
     const topStylist = Object.entries(stylistCounts).sort((a,b) => b[1] - a[1])[0] || ['None', 0];
     const chartData = Object.keys(dailyData).sort().map(date => ({ date, bookings: dailyData[date] }));
 

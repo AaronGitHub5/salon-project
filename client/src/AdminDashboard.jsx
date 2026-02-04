@@ -1,15 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import GuestBookingModal from './GuestBookingModal';
-import AdminAnalytics from './AdminAnalytics'; // Ensure you created this file
+import AdminAnalytics from './AdminAnalytics';
+import API_URL from './config'; 
 
 export default function AdminDashboard({ onBack }) {
   const { user, signOut } = useAuth();
   
-  // 🆕 TABS STATE
   const [activeTab, setActiveTab] = useState('analytics'); 
-
-  // Data State
   const [services, setServices] = useState([]);
   const [formData, setFormData] = useState({ name: '', price: '', duration: 60, category: 'Cutting & Styling' });
   const [editingId, setEditingId] = useState(null);
@@ -17,9 +15,8 @@ export default function AdminDashboard({ onBack }) {
   const [showGuestModal, setShowGuestModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Fetch Services
   useEffect(() => {
-    fetch('http://localhost:5000/api/services')
+    fetch(`${API_URL}/api/services`) 
       .then((res) => res.json())
       .then((data) => setServices(data))
       .catch((err) => console.error('Error fetching services:', err));
@@ -31,7 +28,7 @@ export default function AdminDashboard({ onBack }) {
     const price = parseFloat(formData.price);
     const duration = parseInt(formData.duration);
 
-    const url = editingId ? `http://localhost:5000/api/services/${editingId}` : 'http://localhost:5000/api/services';
+    const url = editingId ? `${API_URL}/api/services/${editingId}` : `${API_URL}/api/services`; 
     const method = editingId ? 'PUT' : 'POST';
 
     try {
@@ -49,12 +46,12 @@ export default function AdminDashboard({ onBack }) {
 
   const handleDelete = async (id) => {
     if (!confirm('Delete service?')) return;
-    await fetch(`http://localhost:5000/api/services/${id}`, { method: 'DELETE' });
+    await fetch(`${API_URL}/api/services/${id}`, { method: 'DELETE' }); 
     setRefresh(p => p + 1);
   };
 
   const handleGuestBooking = async (bookingData) => {
-    const res = await fetch('http://localhost:5000/api/bookings/guest', {
+    const res = await fetch(`${API_URL}/api/bookings/guest`, { 
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(bookingData),
@@ -63,11 +60,10 @@ export default function AdminDashboard({ onBack }) {
       alert("Shadow Booking Created!");
       setShowGuestModal(false);
     } else {
-        alert("Failed to create booking.");
+      alert("Failed to create booking.");
     }
   };
 
-  // Group services
   const groupedServices = services.reduce((acc, s) => {
     const cat = s.category || 'Other';
     if (!acc[cat]) acc[cat] = [];
@@ -82,7 +78,6 @@ export default function AdminDashboard({ onBack }) {
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans p-8">
-      {/* Header */}
       <header className="flex justify-between items-center mb-8 bg-white p-4 shadow-sm rounded-lg border-l-4 border-black">
         <div>
           <h1 className="text-2xl font-bold text-gray-800 uppercase tracking-wide">Admin Control Panel</h1>
@@ -94,31 +89,24 @@ export default function AdminDashboard({ onBack }) {
         </div>
       </header>
 
-      {/* 🆕 NAVIGATION TABS */}
       <div className="flex gap-4 mb-8 border-b border-gray-200 pb-1">
         <button 
           onClick={() => setActiveTab('analytics')}
-          className={`pb-2 px-4 text-sm font-bold uppercase tracking-widest transition ${
-            activeTab === 'analytics' ? 'border-b-2 border-black text-black' : 'text-gray-400 hover:text-gray-600'
-          }`}
+          className={`pb-2 px-4 text-sm font-bold uppercase tracking-widest transition ${activeTab === 'analytics' ? 'border-b-2 border-black text-black' : 'text-gray-400 hover:text-gray-600'}`}
         >
           Overview & Stats
         </button>
         <button 
           onClick={() => setActiveTab('services')}
-          className={`pb-2 px-4 text-sm font-bold uppercase tracking-widest transition ${
-            activeTab === 'services' ? 'border-b-2 border-black text-black' : 'text-gray-400 hover:text-gray-600'
-          }`}
+          className={`pb-2 px-4 text-sm font-bold uppercase tracking-widest transition ${activeTab === 'services' ? 'border-b-2 border-black text-black' : 'text-gray-400 hover:text-gray-600'}`}
         >
           Service Menu
         </button>
       </div>
 
-      {/* VIEW 1: ANALYTICS (Placeholder) */}
       {activeTab === 'analytics' && (
         <div className="space-y-8 animate-fade-in">
           <AdminAnalytics />
-          
           <div className="bg-blue-50 p-6 rounded-lg border border-blue-100 flex justify-between items-center">
             <div>
               <h2 className="text-blue-900 font-bold text-lg">Operational Actions</h2>
@@ -134,10 +122,8 @@ export default function AdminDashboard({ onBack }) {
         </div>
       )}
 
-      {/* VIEW 2: SERVICE CMS (Existing) */}
       {activeTab === 'services' && (
         <div className="grid md:grid-cols-3 gap-8 animate-fade-in">
-          {/* Left: Form */}
           <div className="md:col-span-1 bg-white p-6 rounded shadow-sm border border-gray-100 h-fit">
             <h2 className="font-bold mb-4">{editingId ? 'Edit Service' : 'Add New Service'}</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -174,7 +160,6 @@ export default function AdminDashboard({ onBack }) {
             </form>
           </div>
 
-          {/* Right: List */}
           <div className="md:col-span-2 space-y-6">
             {Object.entries(groupedServices).map(([cat, items]) => (
               <div key={cat} className="bg-white p-6 rounded shadow-sm border border-gray-100">

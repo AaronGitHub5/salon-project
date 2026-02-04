@@ -1,13 +1,55 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "./AuthContext";
 import { supabase } from "./lib/supabase";
+import API_URL from './config'; 
 
 export default function Profile({ onBack }) {
   const { user, role } = useAuth();
+  
   const [newPassword, setNewPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: "", text: "" });
   const [showPasswordForm, setShowPasswordForm] = useState(false);
+
+  //  APPOINTMENT STATE
+  const [appointments, setAppointments] = useState([]);
+  const [loadingAppts, setLoadingAppts] = useState(true);
+
+  // 1. FETCH APPOINTMENTS
+  useEffect(() => {
+    if (user?.id) {
+      fetch(`${API_URL}/api/bookings/customer/${user.id}`) // 🌐 Updated
+        .then((res) => res.json())
+        .then((data) => {
+          setAppointments(data);
+          setLoadingAppts(false);
+        })
+        .catch((err) => {
+          console.error("Error fetching bookings:", err);
+          setLoadingAppts(false);
+        });
+    }
+  }, [user]);
+
+  // 2. HANDLE CANCELLATION
+  const handleCancel = async (bookingId) => {
+    if (!confirm("Are you sure you want to cancel this appointment?")) return;
+
+    try {
+      const res = await fetch(`${API_URL}/api/bookings/${bookingId}/cancel`, { // 🌐 Updated
+        method: 'PUT'
+      });
+      
+      if (res.ok) {
+        alert("Booking cancelled.");
+        setAppointments(prev => prev.filter(b => b.id !== bookingId));
+      } else {
+        alert("Failed to cancel.");
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const handlePasswordChange = async (e) => {
     e.preventDefault();
@@ -19,17 +61,12 @@ export default function Profile({ onBack }) {
     });
 
     try {
-      if (!supabase) {
-        throw new Error("Supabase client not initialized");
-      }
-
+      if (!supabase) throw new Error("Supabase client not initialized");
       const result = await Promise.race([
         supabase.auth.updateUser({ password: newPassword }),
         timeoutPromise,
       ]);
-
       const { error } = result;
-
       if (error) {
         setMessage({ type: "error", text: error.message });
       } else {
@@ -38,11 +75,7 @@ export default function Profile({ onBack }) {
         setShowPasswordForm(false);
       }
     } catch (err) {
-      console.error("Password update error:", err);
-      setMessage({
-        type: "error",
-        text: err.message || "An unexpected error occurred.",
-      });
+      setMessage({ type: "error", text: err.message || "An unexpected error occurred." });
     } finally {
       setLoading(false);
     }
@@ -53,136 +86,92 @@ export default function Profile({ onBack }) {
 
   return (
     <div className="min-h-screen bg-white font-sans text-gray-900 tracking-wide">
-      {/* Navigation */}
       <nav className="fixed w-full bg-white/95 backdrop-blur-sm border-b border-gray-100 z-50">
         <div className="max-w-6xl mx-auto px-6 h-20 flex items-center justify-between">
-          <div className="text-xl md:text-2xl font-light uppercase tracking-[0.2em]">
-            Hair By Amnesia
-          </div>
-          <button
-            onClick={onBack}
-            className="text-xs font-bold uppercase tracking-widest hover:text-gray-500 transition flex items-center gap-2"
-          >
-            <span>←</span> Back to Menu
-          </button>
+          <div className="text-xl md:text-2xl font-light uppercase tracking-[0.2em]">Hair By Amnesia</div>
+          <button onClick={onBack} className="text-xs font-bold uppercase tracking-widest hover:text-gray-500 transition flex items-center gap-2"><span>←</span> Back to Menu</button>
         </div>
       </nav>
 
-      {/* Main Content */}
       <main className="pt-32 pb-20 px-6">
         <div className="max-w-md mx-auto">
-          {/* Welcome Header */}
           <div className="text-center mb-12">
-            <h1 className="text-4xl md:text-5xl font-light mb-3">
-              Welcome back, {displayName}
-            </h1>
+            <h1 className="text-4xl md:text-5xl font-light mb-3">Welcome back, {displayName}</h1>
             <div className="w-12 h-0.5 bg-black mx-auto mt-6"></div>
           </div>
 
-          {/* Account Details */}
           <div className="border border-gray-200 p-6 mb-8">
-            <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-6">
-              Account Details
-            </h3>
+            <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-6">My Appointments</h3>
+            {loadingAppts ? (
+              <p className="text-sm text-gray-400 italic">Loading bookings...</p>
+            ) : appointments.length === 0 ? (
+              <div className="text-center py-6">
+                <p className="text-sm text-gray-500 mb-4">No upcoming appointments.</p>
+                <button onClick={onBack} className="text-xs underline font-bold uppercase">Book one now</button>
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-100">
+                {appointments.map(appt => {
+                  const start = new Date(appt.start_time);
+                  const isPast = new Date() > start;
+                  return (
+                    <div key={appt.id} className="py-4">
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <p className="font-bold text-lg">{appt.services?.name}</p>
+                          <p className="text-xs text-gray-500 uppercase tracking-wider">{start.toLocaleDateString()} at {start.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+                          <p className="text-xs text-gray-400 mt-1">with {appt.stylists?.name} • £{appt.services?.base_price}</p>
+                        </div>
+                        {!isPast ? (
+                          <button onClick={() => handleCancel(appt.id)} className="text-[10px] uppercase font-bold text-red-500 border border-red-100 px-2 py-1 hover:bg-red-50 transition">Cancel</button>
+                        ) : (
+                          <span className="text-[10px] uppercase font-bold text-gray-300 border border-gray-100 px-2 py-1">Completed</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
+          <div className="border border-gray-200 p-6 mb-8">
+            <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-6">Account Details</h3>
             <div className="space-y-4">
               <div className="flex justify-between items-center py-3 border-b border-gray-100">
                 <span className="text-sm text-gray-500">Email</span>
                 <span className="text-sm font-mono">{user?.email}</span>
               </div>
-
               <div className="flex justify-between items-center py-3 border-b border-gray-100">
                 <span className="text-sm text-gray-500">Role</span>
-                <span className="text-xs uppercase tracking-widest bg-gray-100 px-3 py-1">
-                  {role}
-                </span>
+                <span className="text-xs uppercase tracking-widest bg-gray-100 px-3 py-1">{role}</span>
               </div>
-
               <div className="flex justify-between items-center py-3">
                 <span className="text-sm text-gray-500">Password</span>
-                <button
-                  onClick={() => {
-                    setShowPasswordForm(!showPasswordForm);
-                    setMessage({ type: "", text: "" });
-                    setNewPassword("");
-                  }}
-                  className="text-xs uppercase tracking-widest underline hover:no-underline"
-                >
-                  {showPasswordForm ? "Cancel" : "Change"}
-                </button>
+                <button onClick={() => { setShowPasswordForm(!showPasswordForm); setMessage({ type: "", text: "" }); setNewPassword(""); }} className="text-xs uppercase tracking-widest underline hover:no-underline">{showPasswordForm ? "Cancel" : "Change"}</button>
               </div>
-
               {showPasswordForm && (
-                <form
-                  onSubmit={handlePasswordChange}
-                  className="pt-4 space-y-4"
-                >
-                  {message.text && (
-                    <div
-                      className={`p-3 text-xs ${
-                        message.type === "error"
-                          ? "bg-red-50 text-red-700"
-                          : "bg-green-50 text-green-700"
-                      }`}
-                    >
-                      {message.text}
-                    </div>
-                  )}
-
-                  <input
-                    type="password"
-                    required
-                    minLength={6}
-                    placeholder="New password (min 6 characters)"
-                    className="w-full border border-gray-200 p-3 text-sm focus:outline-none focus:border-black transition"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    disabled={loading}
-                  />
-
-                  <button
-                    type="submit"
-                    disabled={loading || newPassword.length < 6}
-                    className="w-full bg-black text-white text-xs uppercase tracking-widest py-3 hover:bg-gray-800 transition disabled:bg-gray-300"
-                  >
-                    {loading ? "Updating..." : "Update Password"}
-                  </button>
+                <form onSubmit={handlePasswordChange} className="pt-4 space-y-4">
+                  {message.text && <div className={`p-3 text-xs ${message.type === "error" ? "bg-red-50 text-red-700" : "bg-green-50 text-green-700"}`}>{message.text}</div>}
+                  <input type="password" required minLength={6} placeholder="New password (min 6 characters)" className="w-full border border-gray-200 p-3 text-sm focus:outline-none focus:border-black transition" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} disabled={loading} />
+                  <button type="submit" disabled={loading || newPassword.length < 6} className="w-full bg-black text-white text-xs uppercase tracking-widest py-3 hover:bg-gray-800 transition disabled:bg-gray-300">{loading ? "Updating..." : "Update Password"}</button>
                 </form>
               )}
             </div>
           </div>
 
-          {/* Quick Actions */}
           <div>
-            <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-6">
-              Quick Actions
-            </h3>
-
+            <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-6">Quick Actions</h3>
             <div className="grid grid-cols-2 gap-4">
-              <button
-                onClick={onBack}
-                className="border border-black bg-black text-white text-xs uppercase tracking-widest py-4 hover:bg-gray-800 transition"
-              >
-                Book Now
-              </button>
-              <button
-                onClick={onBack}
-                className="border border-gray-200 text-xs uppercase tracking-widest py-4 hover:border-black transition"
-              >
-                View Services
-              </button>
+              <button onClick={onBack} className="border border-black bg-black text-white text-xs uppercase tracking-widest py-4 hover:bg-gray-800 transition">Book Now</button>
+              <button onClick={onBack} className="border border-gray-200 text-xs uppercase tracking-widest py-4 hover:border-black transition">View Services</button>
             </div>
           </div>
         </div>
       </main>
 
-      {/* Footer */}
       <footer className="border-t border-gray-100 py-8">
-        <div className="max-w-4xl mx-auto px-6 text-center">
-          <p className="text-xs text-gray-400 uppercase tracking-widest">
-            Hair By Amnesia © 2026
-          </p>
-        </div>
+        <div className="max-w-4xl mx-auto px-6 text-center"><p className="text-xs text-gray-400 uppercase tracking-widest">Hair By Amnesia © 2026</p></div>
       </footer>
     </div>
   );

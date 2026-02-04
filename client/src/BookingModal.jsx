@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import API_URL from './config';
 
 export default function BookingModal({ service, onClose, onConfirm }) {
   const [stylists, setStylists] = useState([]);
@@ -10,14 +11,13 @@ export default function BookingModal({ service, onClose, onConfirm }) {
   
   // UI State
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [availableSlots, setAvailableSlots] = useState([]); // Stores valid times from server
+  const [availableSlots, setAvailableSlots] = useState([]); 
   const [isLoadingSlots, setIsLoadingSlots] = useState(false);
   
   // DYNAMIC PRICING STATE
   const [displayPrice, setDisplayPrice] = useState(service.base_price);
   const [isPeak, setIsPeak] = useState(false);
 
-  // Standard shop hours to generate grid (09:00 - 18:00)
   const allTimeSlots = [
     "09:00", "09:30", "10:00", "10:30", "11:00", "11:30", 
     "12:00", "12:30", "13:00", "13:30", "14:00", "14:30",
@@ -26,7 +26,7 @@ export default function BookingModal({ service, onClose, onConfirm }) {
 
   // Fetch Stylists on mount
   useEffect(() => {
-    fetch("http://localhost:5000/api/stylists")
+    fetch(`${API_URL}/api/stylists`)
       .then((res) => res.json())
       .then((data) => setStylists(data));
   }, []);
@@ -38,10 +38,10 @@ export default function BookingModal({ service, onClose, onConfirm }) {
       setAvailableSlots([]); 
       setSelectedTime("");
 
-      const dateStr = selectedDate.toISOString().split('T')[0]; // YYYY-MM-DD
+      const dateStr = selectedDate.toISOString().split('T')[0]; 
       
       // Call backend to find free slots
-      fetch(`http://localhost:5000/api/availability/${selectedStylist}/${dateStr}?serviceId=${service.id}`)
+      fetch(`${API_URL}/api/availability/${selectedStylist}/${dateStr}?serviceId=${service.id}`)
         .then(res => res.json())
         .then(data => {
            if (data.available && data.slots) {
@@ -282,7 +282,6 @@ export default function BookingModal({ service, onClose, onConfirm }) {
                       `}
                     >
                       {slot}
-                      {/* Lightning bolt if available AND peak */}
                       {isPeakSlot && isAvailable && selectedTime !== slot && (
                         <span className="absolute top-0 right-1 text-orange-500 text-[10px] font-bold">⚡</span>
                       )}
