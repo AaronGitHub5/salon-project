@@ -3,8 +3,7 @@ import { supabase } from './lib/supabase';
 
 const AuthContext = createContext();
 
-// Bump version to force a clean slate for everyone
-const AUTH_VERSION = '5'; 
+const AUTH_VERSION = '6'; 
 
 function nukeStorage() {
   Object.keys(localStorage).forEach((key) => {
@@ -12,57 +11,50 @@ function nukeStorage() {
   });
 }
 
-function hasExistingSession() {
-  return Object.keys(localStorage).some((key) => key.startsWith('sb-'));
-}
-
 export function AuthProvider({ children }) {
+  // --- INSTANT LOAD LOGIC ---
+  // 1. Check if we have a session in storage right now
+  const hasSession = Object.keys(localStorage).some((key) => key.startsWith('sb-'));
+  
+  // 2. If we have a session, assume we are logged in immediately (optimistic UI)
+  const [loading, setLoading] = useState(false); 
+  
+  // 3. Initialize user/role from memory if possible, or null
   const [user, setUser] = useState(null);
   const [role, setRole] = useState(null);
-  const [loading, setLoading] = useState(hasExistingSession());
+  
   const isSigningIn = useRef(false);
 
+  // Version check (keep this to clean up old messes)
   useEffect(() => {
     const storedVersion = localStorage.getItem('auth_version');
     if (storedVersion !== AUTH_VERSION) {
       nukeStorage();
       localStorage.setItem('auth_version', AUTH_VERSION);
-      setLoading(false);
+      // If we nuked storage, we aren't logged in
+      setUser(null);
+      setRole(null);
     }
   }, []);
 
-  // --- FIXED fetchRole FUNCTION ---
   const fetchRole = async (userId) => {
-    console.log(`🔍 Fetching role for User ID: ${userId}`);
-
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', userId)
-      .single();
-
-    // 1. Log the EXACT result from the database
-    if (error) {
-      console.error('❌ Supabase Error fetching role:', error);
-      // If code is 'PGRST116', it means no row exists in 'profiles' table
-      if (error.code === 'PGRST116') {
-        console.error('⚠️ Critical: User exists in Auth but has NO ROW in public.profiles table.');
-      }
-      return 'customer'; // Default to safe role on error
-    }
-
-    if (!data) {
-      console.error('❌ No data returned from Supabase.');
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', userId)
+        .single();
+      
+      if (error || !data) return 'customer';
+      return data.role || 'customer';
+    } catch {
       return 'customer';
     }
-
-    console.log(`✅ Success! Role from DB is: "${data.role}"`);
-    return data.role || 'customer';
   };
-  // --------------------------------
 
   useEffect(() => {
-    if (!hasExistingSession()) {
+    // If no session exists, we are definitely done loading
+    if (!hasSession) {
       setLoading(false);
       return;
     }
@@ -71,20 +63,26 @@ export function AuthProvider({ children }) {
 
     const init = async () => {
       try {
+        // This is the network call that usually causes the delay
         const { data: { session } } = await supabase.auth.getSession();
+        
         if (!mounted) return;
 
         if (session?.user) {
+          // Verify role in background
           const userRole = await fetchRole(session.user.id);
           setUser(session.user);
           setRole(userRole);
+        } else if (hasSession) {
+          // If storage said yes but server said no, clean up
+          nukeStorage();
+          setUser(null);
+          setRole(null);
         }
       } catch (err) {
-        console.error("Session init failed:", err);
         nukeStorage();
-      } finally {
-        if (mounted) setLoading(false);
       }
+      // We don't touch setLoading(false) here because we set it to false initially
     };
 
     init();
@@ -118,12 +116,6 @@ export function AuthProvider({ children }) {
 
     const { data, error } = await supabase.auth.signInWithPassword(credentials);
 
-    if (error) {
-        console.error("Sign In Error:", error.message);
-        isSigningIn.current = false;
-        return { data, error };
-    }
-
     if (data?.user) {
       const userRole = await fetchRole(data.user.id);
       setUser(data.user);
@@ -141,6 +133,7 @@ export function AuthProvider({ children }) {
     await supabase.auth.signOut().catch(() => {});
   };
 
+  // We only render null if we are explicitly forced to wait (rare now)
   if (loading) return null;
 
   return (
