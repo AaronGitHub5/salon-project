@@ -3,12 +3,23 @@ import { supabase } from './lib/supabase';
 
 const AuthContext = createContext();
 
+function clearCorruptedStorage() {
+  try {
+    Object.keys(localStorage).forEach((key) => {
+      if (key.startsWith('sb-')) {
+        localStorage.removeItem(key);
+      }
+    });
+  } catch (e) {
+    localStorage.clear();
+  }
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [role, setRole] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Helper to safely fetch role
   const fetchRole = async (userId) => {
     try {
       const { data, error } = await supabase
@@ -20,13 +31,13 @@ export function AuthProvider({ children }) {
       if (error || !data) return 'customer';
       return data.role;
     } catch (err) {
-      console.error('Role fetch failed:', err);
       return 'customer';
     }
   };
 
   useEffect(() => {
-    // 1. Initial Session Check with Validation
+    let isMounted = true;
+
     const initSession = async () => {
       try {
         const {
@@ -34,86 +45,111 @@ export function AuthProvider({ children }) {
           error,
         } = await supabase.auth.getSession();
 
-        if (error) {
-          console.error('Session error:', error);
-          throw error;
-        }
+        if (!isMounted) return;
+
+        if (error) throw error;
 
         if (session?.user) {
-          // Validate the session is actually working by making a test call
-          const { error: testError } = await supabase.auth.getUser();
-          if (testError) {
-            console.error('Token validation failed:', testError);
-            throw testError;
+          const { data: userData, error: userError } =
+            await supabase.auth.getUser();
+
+          if (userError || !userData?.user) {
+            throw new Error('Invalid session');
           }
 
           setUser(session.user);
           const userRole = await fetchRole(session.user.id);
-          setRole(userRole);
+          if (isMounted) setRole(userRole);
         }
       } catch (err) {
-        console.error('Session corrupted, clearing...', err);
-        // Force logout if session is invalid
-        await supabase.auth.signOut();
-        setUser(null);
-        setRole(null);
-        // Clear all Supabase-related storage
-        Object.keys(localStorage).forEach((key) => {
-          if (key.startsWith('sb-')) {
-            localStorage.removeItem(key);
-          }
-        });
+        console.error('Session invalid, clearing...', err);
+        clearCorruptedStorage();
+        await supabase.auth.signOut().catch(() => {});
+        if (isMounted) {
+          setUser(null);
+          setRole(null);
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
 
+    const timeout = setTimeout(() => {
+      if (isMounted && loading) {
+        console.warn('Auth timeout - forcing login screen');
+        clearCorruptedStorage();
+        setUser(null);
+        setRole(null);
+        setLoading(false);
+      }
+    }, 5000);
+
     initSession();
 
-    // 2. Listen for Changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth event:', event);
+      if (!isMounted) return;
 
-      if (event === 'TOKEN_REFRESHED') {
-        console.log('Token refreshed successfully');
-      }
-
-      if (event === 'SIGNED_OUT') {
+      if (event === 'SIGNED_OUT' || !session) {
         setUser(null);
         setRole(null);
+        setLoading(false);
         return;
       }
 
       if (session?.user) {
         setUser(session.user);
+        // Always fetch fresh role on auth change
         const userRole = await fetchRole(session.user.id);
-        setRole(userRole);
-      } else {
-        setUser(null);
-        setRole(null);
+        if (isMounted) setRole(userRole);
       }
       setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      isMounted = false;
+      clearTimeout(timeout);
+      subscription.unsubscribe();
+    };
   }, []);
 
+  const signOut = async () => {
+    setUser(null);
+    setRole(null);
+    clearCorruptedStorage();
+    await supabase.auth.signOut().catch(() => {});
+  };
+
+  // FIXED: Sign in now clears old state and fetches fresh role
+  const signIn = async (data) => {
+    // Clear old user/role FIRST
+    setUser(null);
+    setRole(null);
+
+    const result = await supabase.auth.signInWithPassword(data);
+
+    // If sign in succeeded, immediately set user and fetch role
+    if (result.data?.user && !result.error) {
+      setUser(result.data.user);
+      const freshRole = await fetchRole(result.data.user.id);
+      setRole(freshRole);
+    }
+
+    return result;
+  };
+
+  // FIXED: Sign up also handles role properly
+  const signUp = async (data) => {
+    setUser(null);
+    setRole(null);
+    return supabase.auth.signUp(data);
+  };
+
   const value = {
-    signUp: (data) => supabase.auth.signUp(data),
-    signIn: (data) => supabase.auth.signInWithPassword(data),
-    signOut: async () => {
-      setRole(null);
-      setUser(null);
-      await supabase.auth.signOut();
-      // Clear all Supabase-related storage
-      Object.keys(localStorage).forEach((key) => {
-        if (key.startsWith('sb-')) {
-          localStorage.removeItem(key);
-        }
-      });
-    },
+    signUp,
+    signIn,
+    signOut,
     user,
     role,
   };
