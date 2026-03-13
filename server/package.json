@@ -4,9 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-  "start": "node index.js",
-  "dev": "nodemon index.js"
-},
+    "start": "node index.js",
+    "dev": "nodemon index.js"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",
@@ -16,6 +16,8 @@
     "date-fns": "^4.1.0",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.3.1",
+    "helmet": "^8.1.0",
     "nodemailer": "^7.0.13",
     "nodemon": "^3.1.11"
   }

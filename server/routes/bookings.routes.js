@@ -1,12 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const bookingsController = require('../controllers/bookings.controller');
+const { verifyToken } = require('../middleware/auth');
+const { requireRole } = require('../middleware/requireRole');
 
-router.get('/', bookingsController.getAll);
-router.post('/', bookingsController.create);
-router.post('/guest', bookingsController.createGuest);
-router.get('/customer/:id', bookingsController.getByCustomer);
-router.put('/:id/cancel', bookingsController.cancel);
-router.put('/:id/complete', bookingsController.complete);
+router.get('/', verifyToken, requireRole('admin'), bookingsController.getAll);
+router.post('/', verifyToken, bookingsController.create);
+router.post('/guest', verifyToken, requireRole('admin'), bookingsController.createGuest);
+router.get('/customer/:id', verifyToken, bookingsController.getByCustomer);
+router.put('/:id/cancel', verifyToken, bookingsController.cancel);
+router.put('/:id/complete', verifyToken, requireRole('stylist'), bookingsController.complete);
 
 module.exports = router;
