@@ -27,7 +27,14 @@ export default function Login() {
             },
           } 
         });
-        if (error) throw error;
+        if (error) {
+          if (error.message.includes('User already registered')) {
+            setError('An account with this email already exists. Please log in instead.');
+          } else {
+            throw error;
+          }
+          return;
+        }
         alert("Account created! Please check your email to verify your account before logging in.");
       } else {
         const { error } = await signIn({ email, password });
