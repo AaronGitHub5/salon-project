@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "ics": "^3.8.1",
     "resend": "^6.9.4"
   }
 }

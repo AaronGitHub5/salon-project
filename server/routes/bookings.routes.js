@@ -10,5 +10,7 @@ router.post('/guest', verifyToken, requireRole('admin'), bookingsController.crea
 router.get('/customer/:id', verifyToken, bookingsController.getByCustomer);
 router.put('/:id/cancel', verifyToken, bookingsController.cancel);
 router.put('/:id/complete', verifyToken, requireRole('stylist'), bookingsController.complete);
+router.put('/:id/reschedule', verifyToken, bookingsController.reschedule);
+router.get('/:id/export', verifyToken, bookingsController.exportIcs);
 
 module.exports = router;

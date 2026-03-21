@@ -14,7 +14,7 @@ async function getAllBookings() {
 async function getBookingById(id) {
   const { data, error } = await supabase
     .from('bookings')
-    .select('*, services(name, base_price), profiles(email), stylists(name)')
+    .select('*, services(name, duration_minutes, base_price), profiles(email, full_name), stylists(name)')
     .eq('id', id)
     .single();
   if (error) throw error;
@@ -73,10 +73,17 @@ async function completeBooking(id) {
   if (error) throw error;
 }
 
-/**
- * Returns true if a conflicting booking exists for the given stylist/time window.
- * Pass excludeBookingId when rescheduling to ignore the booking being moved.
- */
+async function rescheduleBooking(id, newStartTime, newEndTime) {
+  const { data, error } = await supabase
+    .from('bookings')
+    .update({ start_time: newStartTime, end_time: newEndTime })
+    .eq('id', id)
+    .select('*, services(name), stylists(name), profiles(email, full_name)')
+    .single();
+  if (error) throw error;
+  return data;
+}
+
 async function checkConflict(stylistId, startTime, endTime, excludeBookingId = null) {
   let query = supabase
     .from('bookings')
@@ -103,5 +110,6 @@ module.exports = {
   createGuestBooking,
   cancelBooking,
   completeBooking,
+  rescheduleBooking,
   checkConflict,
 };

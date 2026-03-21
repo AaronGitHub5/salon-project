@@ -58,4 +58,26 @@ async function complete(req, res) {
   }
 }
 
-module.exports = { getAll, create, createGuest, getByCustomer, cancel, complete };
+async function reschedule(req, res) {
+  try {
+    const result = await bookingService.rescheduleBooking(req.params.id, req.body.new_start_time);
+    res.json({ message: 'Booking rescheduled', data: result });
+  } catch (err) {
+    const status = err.status || 500;
+    res.status(status).json({ error: err.message });
+  }
+}
+
+async function exportIcs(req, res) {
+  try {
+    const icsContent = await bookingService.exportBookingIcs(req.params.id);
+    res.setHeader('Content-Type', 'text/calendar');
+    res.setHeader('Content-Disposition', `attachment; filename="booking-${req.params.id}.ics"`);
+    res.send(icsContent);
+  } catch (err) {
+    const status = err.status || 500;
+    res.status(status).json({ error: err.message });
+  }
+}
+
+module.exports = { getAll, create, createGuest, getByCustomer, cancel, complete, reschedule, exportIcs };
