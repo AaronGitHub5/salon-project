@@ -4,11 +4,9 @@ import { useAuth } from './AuthContext';
 export default function Login() {
   const { signIn, signUp } = useAuth();
   
-  // Form State
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState(''); 
-  
   const [isSignUp, setIsSignUp] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -20,8 +18,7 @@ export default function Login() {
     
     try {
       if (isSignUp) {
-        
-        const { data, error } = await signUp({
+        const { error } = await signUp({
           email,
           password,
           options: {
@@ -30,14 +27,25 @@ export default function Login() {
             },
           }
         });
-        if (error) throw error;
-        if (data?.user?.identities?.length === 0) {
-          throw new Error("An account with this email already exists. Please log in instead.");
+        if (error) {
+          if (error.message.includes('User already registered')) {
+            setError('An account with this email already exists. Please log in instead.');
+          } else {
+            throw error;
+          }
+          return;
         }
-        alert("Account created! Please check your email or log in.");
+        alert("Account created! Please check your email to verify your account before logging in.");
       } else {
         const { error } = await signIn({ email, password });
-        if (error) throw error;
+        if (error) {
+          if (error.message.includes('Email not confirmed')) {
+            setError('Please verify your email address before logging in. Check your inbox for a confirmation link from no-reply@hairbyamnesia.co.uk');
+          } else {
+            throw error;
+          }
+          return;
+        }
       }
     } catch (err) {
       setError(err.message);
@@ -57,7 +65,6 @@ export default function Login() {
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           
-          {/*  Name Input - Only for Sign Up */}
           {isSignUp && (
             <input
               type="text"
