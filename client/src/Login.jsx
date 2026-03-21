@@ -21,16 +21,19 @@ export default function Login() {
     try {
       if (isSignUp) {
         
-        const { error } = await signUp({ 
-          email, 
-          password, 
+        const { data, error } = await signUp({
+          email,
+          password,
           options: {
             data: {
-              full_name: fullName, 
+              full_name: fullName,
             },
-          } 
+          }
         });
         if (error) throw error;
+        if (data?.user?.identities?.length === 0) {
+          throw new Error("An account with this email already exists. Please log in instead.");
+        }
         alert("Account created! Please check your email or log in.");
       } else {
         const { error } = await signIn({ email, password });
