@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
+import { supabase } from './lib/supabase';
 
 export default function Login() {
   const { signIn, signUp } = useAuth();
@@ -8,24 +9,33 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState(''); 
   const [isSignUp, setIsSignUp] = useState(false);
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
+  const [isResetPassword, setIsResetPassword] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Detect if user arrived via password reset link
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (hash.includes('type=recovery')) {
+      setIsResetPassword(true);
+    }
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setSuccess('');
     setLoading(true);
     
     try {
       if (isSignUp) {
-        const { error } = await signUp({
-          email,
-          password,
-          options: {
-            data: {
-              full_name: fullName,
-            },
-          }
+        const { error } = await signUp({ 
+          email, 
+          password, 
+          options: { data: { full_name: fullName } } 
         });
         if (error) {
           if (error.message.includes('User already registered')) {
@@ -54,6 +64,99 @@ export default function Login() {
     }
   };
 
+  const handleForgotPassword = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: 'https://hairbyamnesia.co.uk',
+      });
+      if (error) throw error;
+      setSuccess('Password reset email sent! Check your inbox.');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      setSuccess('Password updated successfully!');
+      setTimeout(() => {
+        setIsResetPassword(false);
+        window.location.hash = '';
+      }, 2000);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // --- RESET PASSWORD FORM ---
+  if (isResetPassword) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 font-sans">
+        <div className="bg-white p-8 rounded shadow-lg w-96 border border-gray-100">
+          <h2 className="text-2xl font-light uppercase tracking-widest mb-6 text-center">New Password</h2>
+          {error && <p className="bg-red-50 text-red-600 p-3 text-xs mb-4">{error}</p>}
+          {success && <p className="bg-green-50 text-green-600 p-3 text-xs mb-4">{success}</p>}
+          <form onSubmit={handleResetPassword} className="flex flex-col gap-4">
+            <input
+              type="password"
+              placeholder="New Password"
+              minLength={6}
+              required
+              className="border p-3 text-sm focus:outline-black transition"
+              onChange={(e) => setNewPassword(e.target.value)}
+            />
+            <button disabled={loading} className="bg-black text-white p-3 text-xs font-bold uppercase tracking-widest hover:bg-gray-800 transition">
+              {loading ? 'Updating...' : 'Update Password'}
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // --- FORGOT PASSWORD FORM ---
+  if (isForgotPassword) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 font-sans">
+        <div className="bg-white p-8 rounded shadow-lg w-96 border border-gray-100">
+          <h2 className="text-2xl font-light uppercase tracking-widest mb-2 text-center">Reset Password</h2>
+          <p className="text-xs text-gray-400 text-center mb-6">Enter your email and we'll send you a reset link.</p>
+          {error && <p className="bg-red-50 text-red-600 p-3 text-xs mb-4">{error}</p>}
+          {success && <p className="bg-green-50 text-green-600 p-3 text-xs mb-4">{success}</p>}
+          <form onSubmit={handleForgotPassword} className="flex flex-col gap-4">
+            <input
+              type="email"
+              placeholder="Email Address"
+              required
+              className="border p-3 text-sm focus:outline-black transition"
+              onChange={(e) => setEmail(e.target.value)}
+            />
+            <button disabled={loading} className="bg-black text-white p-3 text-xs font-bold uppercase tracking-widest hover:bg-gray-800 transition">
+              {loading ? 'Sending...' : 'Send Reset Link'}
+            </button>
+          </form>
+          <p className="text-center mt-6 text-xs text-gray-400">
+            <button onClick={() => setIsForgotPassword(false)} className="text-black underline">Back to Login</button>
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // --- MAIN LOGIN/SIGNUP FORM ---
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 font-sans">
       <div className="bg-white p-8 rounded shadow-lg w-96 border border-gray-100">
@@ -64,7 +167,6 @@ export default function Login() {
         {error && <p className="bg-red-50 text-red-600 p-3 text-xs mb-4">{error}</p>}
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          
           {isSignUp && (
             <input
               type="text"
@@ -74,7 +176,6 @@ export default function Login() {
               required
             />
           )}
-
           <input
             type="email"
             placeholder="Email Address"
@@ -89,21 +190,22 @@ export default function Login() {
             onChange={(e) => setPassword(e.target.value)}
             required
           />
-          
-          <button 
-            disabled={loading} 
-            className="bg-black text-white p-3 text-xs font-bold uppercase tracking-widest hover:bg-gray-800 transition"
-          >
+          <button disabled={loading} className="bg-black text-white p-3 text-xs font-bold uppercase tracking-widest hover:bg-gray-800 transition">
             {loading ? 'Processing...' : (isSignUp ? 'Create Account' : 'Login')}
           </button>
         </form>
 
-        <p className="text-center mt-6 text-xs text-gray-400">
-          {isSignUp ? 'Already have an account?' : "New client?"} {' '}
-          <button 
-            onClick={() => setIsSignUp(!isSignUp)}
-            className="text-black underline font-bold"
-          >
+        {!isSignUp && (
+          <p className="text-center mt-4 text-xs text-gray-400">
+            <button onClick={() => setIsForgotPassword(true)} className="text-black underline">
+              Forgot password?
+            </button>
+          </p>
+        )}
+
+        <p className="text-center mt-4 text-xs text-gray-400">
+          {isSignUp ? 'Already have an account?' : "New client?"}{' '}
+          <button onClick={() => setIsSignUp(!isSignUp)} className="text-black underline font-bold">
             {isSignUp ? 'Login' : 'Sign Up'}
           </button>
         </p>

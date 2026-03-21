@@ -1,215 +1,211 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import { supabase } from './lib/supabase';
+import API_URL from './config';
+import BookingModal from './BookingModal';
 
-export default function Login() {
-  const { signIn, signUp } = useAuth();
+export default function Profile({ onBack }) {
+  const { user, role } = useAuth();
   
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [fullName, setFullName] = useState(''); 
-  const [isSignUp, setIsSignUp] = useState(false);
-  const [isForgotPassword, setIsForgotPassword] = useState(false);
-  const [isResetPassword, setIsResetPassword] = useState(false);
+  const [activeTab, setActiveTab] = useState('appointments');
+  const [appointments, setAppointments] = useState([]);
+  const [loadingAppts, setLoadingAppts] = useState(true);
   const [newPassword, setNewPassword] = useState('');
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [pwLoading, setPwLoading] = useState(false);
+  const [points, setPoints] = useState(0);
+  const [reschedulingBooking, setReschedulingBooking] = useState(null);
 
-  // Detect if user arrived via password reset link
   useEffect(() => {
-    const hash = window.location.hash;
-    if (hash.includes('type=recovery')) {
-      setIsResetPassword(true);
-    }
-  }, []);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    setSuccess('');
-    setLoading(true);
-    
-    try {
-      if (isSignUp) {
-        const { error } = await signUp({ 
-          email, 
-          password, 
-          options: { data: { full_name: fullName } } 
-        });
-        if (error) {
-          if (error.message.includes('User already registered')) {
-            setError('An account with this email already exists. Please log in instead.');
-          } else {
-            throw error;
-          }
-          return;
-        }
-        alert("Account created! Please check your email to verify your account before logging in.");
-      } else {
-        const { error } = await signIn({ email, password });
-        if (error) {
-          if (error.message.includes('Email not confirmed')) {
-            setError('Please verify your email address before logging in. Check your inbox for a confirmation link from no-reply@hairbyamnesia.co.uk');
-          } else {
-            throw error;
-          }
-          return;
-        }
-      }
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleForgotPassword = async (e) => {
-    e.preventDefault();
-    setError('');
-    setSuccess('');
-    setLoading(true);
-    try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: 'https://hairbyamnesia.co.uk',
+    if (user?.id) {
+      supabase.auth.getSession().then(({ data: sessionData }) => {
+        const token = sessionData?.session?.access_token;
+        fetch(`${API_URL}/api/bookings/customer/${user.id}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+          .then(res => res.json())
+          .then(data => { setAppointments(Array.isArray(data) ? data : []); setLoadingAppts(false); })
+          .catch(err => { console.error(err); setLoadingAppts(false); });
       });
-      if (error) throw error;
-      setSuccess('Password reset email sent! Check your inbox.');
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
+
+      supabase.from('profiles').select('loyalty_points').eq('id', user.id).single()
+        .then(({ data }) => { if(data) setPoints(data.loyalty_points || 0); });
+    }
+  }, [user]);
+
+  const handleCancel = async (bookingId) => {
+    if (!confirm("Cancel this appointment?")) return;
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData?.session?.access_token;
+    const res = await fetch(`${API_URL}/api/bookings/${bookingId}/cancel`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (res.ok) {
+      alert("Booking cancelled.");
+      setAppointments(prev => prev.filter(b => b.id !== bookingId));
     }
   };
 
-  const handleResetPassword = async (e) => {
+  const handleReschedule = async (stylistId, newStartTime) => {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData?.session?.access_token;
+    const res = await fetch(`${API_URL}/api/bookings/${reschedulingBooking.id}/reschedule`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ new_start_time: newStartTime }),
+    });
+    if (res.ok) {
+      alert("Booking rescheduled! Check your email for confirmation.");
+      setReschedulingBooking(null);
+      // Refresh appointments
+      const refreshRes = await fetch(`${API_URL}/api/bookings/customer/${user.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await refreshRes.json();
+      setAppointments(Array.isArray(data) ? data : []);
+    } else {
+      const err = await res.json().catch(() => ({}));
+      alert(`Failed to reschedule: ${err.error || res.status}`);
+    }
+  };
+
+  const handleExportIcs = async (bookingId) => {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData?.session?.access_token;
+    const res = await fetch(`${API_URL}/api/bookings/${bookingId}/export`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (res.ok) {
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `booking-${bookingId}.ics`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } else {
+      alert('Failed to export calendar file.');
+    }
+  };
+
+  const handlePasswordChange = async (e) => {
     e.preventDefault();
-    setError('');
-    setLoading(true);
-    try {
-      const { error } = await supabase.auth.updateUser({ password: newPassword });
-      if (error) throw error;
-      setSuccess('Password updated successfully!');
-      setTimeout(() => {
-        setIsResetPassword(false);
-        window.location.hash = '';
-      }, 2000);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+    setPwLoading(true);
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) alert("Error: " + error.message);
+    else { alert("Updated!"); setNewPassword(''); }
+    setPwLoading(false);
   };
 
-  // --- RESET PASSWORD FORM ---
-  if (isResetPassword) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 font-sans">
-        <div className="bg-white p-8 rounded shadow-lg w-96 border border-gray-100">
-          <h2 className="text-2xl font-light uppercase tracking-widest mb-6 text-center">New Password</h2>
-          {error && <p className="bg-red-50 text-red-600 p-3 text-xs mb-4">{error}</p>}
-          {success && <p className="bg-green-50 text-green-600 p-3 text-xs mb-4">{success}</p>}
-          <form onSubmit={handleResetPassword} className="flex flex-col gap-4">
-            <input
-              type="password"
-              placeholder="New Password"
-              minLength={6}
-              required
-              className="border p-3 text-sm focus:outline-black transition"
-              onChange={(e) => setNewPassword(e.target.value)}
-            />
-            <button disabled={loading} className="bg-black text-white p-3 text-xs font-bold uppercase tracking-widest hover:bg-gray-800 transition">
-              {loading ? 'Updating...' : 'Update Password'}
-            </button>
-          </form>
-        </div>
-      </div>
-    );
-  }
-
-  // --- FORGOT PASSWORD FORM ---
-  if (isForgotPassword) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 font-sans">
-        <div className="bg-white p-8 rounded shadow-lg w-96 border border-gray-100">
-          <h2 className="text-2xl font-light uppercase tracking-widest mb-2 text-center">Reset Password</h2>
-          <p className="text-xs text-gray-400 text-center mb-6">Enter your email and we'll send you a reset link.</p>
-          {error && <p className="bg-red-50 text-red-600 p-3 text-xs mb-4">{error}</p>}
-          {success && <p className="bg-green-50 text-green-600 p-3 text-xs mb-4">{success}</p>}
-          <form onSubmit={handleForgotPassword} className="flex flex-col gap-4">
-            <input
-              type="email"
-              placeholder="Email Address"
-              required
-              className="border p-3 text-sm focus:outline-black transition"
-              onChange={(e) => setEmail(e.target.value)}
-            />
-            <button disabled={loading} className="bg-black text-white p-3 text-xs font-bold uppercase tracking-widest hover:bg-gray-800 transition">
-              {loading ? 'Sending...' : 'Send Reset Link'}
-            </button>
-          </form>
-          <p className="text-center mt-6 text-xs text-gray-400">
-            <button onClick={() => setIsForgotPassword(false)} className="text-black underline">Back to Login</button>
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  // --- MAIN LOGIN/SIGNUP FORM ---
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 font-sans">
-      <div className="bg-white p-8 rounded shadow-lg w-96 border border-gray-100">
-        <h2 className="text-2xl font-light uppercase tracking-widest mb-6 text-center">
-          {isSignUp ? 'Join Us' : 'Sign In'}
-        </h2>
+    <div className="min-h-screen bg-gray-50 p-6 font-sans">
+      <div className="max-w-3xl mx-auto">
         
-        {error && <p className="bg-red-50 text-red-600 p-3 text-xs mb-4">{error}</p>}
+        {/* Header */}
+        <div className="flex justify-between items-end mb-8">
+          <div>
+            <h1 className="text-3xl font-light uppercase tracking-widest text-gray-800">My Account</h1>
+            <p className="text-sm text-gray-500 mt-1">{user?.email}</p>
+          </div>
+          <button onClick={onBack} className="text-sm underline hover:text-red-500">Back to Home</button>
+        </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          {isSignUp && (
-            <input
-              type="text"
-              placeholder="Full Name"
-              className="border p-3 text-sm focus:outline-black transition"
-              onChange={(e) => setFullName(e.target.value)}
-              required
-            />
-          )}
-          <input
-            type="email"
-            placeholder="Email Address"
-            className="border p-3 text-sm focus:outline-black transition"
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            className="border p-3 text-sm focus:outline-black transition"
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-          <button disabled={loading} className="bg-black text-white p-3 text-xs font-bold uppercase tracking-widest hover:bg-gray-800 transition">
-            {loading ? 'Processing...' : (isSignUp ? 'Create Account' : 'Login')}
-          </button>
-        </form>
+        {/* Tabs */}
+        <div className="flex gap-6 border-b border-gray-200 mb-8">
+          <button onClick={() => setActiveTab('appointments')} className={`pb-3 text-sm font-bold uppercase tracking-widest transition ${activeTab === 'appointments' ? 'border-b-2 border-black text-black' : 'text-gray-400'}`}>My Appointments</button>
+          <button onClick={() => setActiveTab('settings')} className={`pb-3 text-sm font-bold uppercase tracking-widest transition ${activeTab === 'settings' ? 'border-b-2 border-black text-black' : 'text-gray-400'}`}>Settings</button>
+        </div>
 
-        {!isSignUp && (
-          <p className="text-center mt-4 text-xs text-gray-400">
-            <button onClick={() => setIsForgotPassword(true)} className="text-black underline">
-              Forgot password?
-            </button>
-          </p>
+        {/* TAB 1: APPOINTMENTS */}
+        {activeTab === 'appointments' && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 min-h-[400px]">
+            {loadingAppts ? (
+              <div className="p-10 text-center text-gray-400">Loading...</div>
+            ) : appointments.length === 0 ? (
+              <div className="p-16 text-center text-gray-400">No bookings found.</div>
+            ) : (
+              <div className="divide-y divide-gray-100">
+                {appointments.map(appt => {
+                  const start = new Date(appt.start_time);
+                  const isPast = new Date() > start;
+                  return (
+                    <div key={appt.id} className="p-6 flex justify-between items-center hover:bg-gray-50 transition">
+                      <div>
+                        <h3 className="font-bold text-gray-800 text-lg">{appt.services?.name}</h3>
+                        <p className="text-sm text-gray-500">with {appt.stylists?.name} • £{appt.services?.base_price}</p>
+                        <p className="text-xs font-mono mt-1 text-gray-400">{start.toLocaleString()}</p>
+                      </div>
+                      <div className="flex gap-2 items-center">
+                        {isPast || appt.status === 'completed' ? (
+                          <span className="bg-gray-100 text-gray-500 text-[10px] font-bold px-3 py-1 rounded uppercase">Completed</span>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => setReschedulingBooking(appt)}
+                              className="text-blue-500 border border-blue-200 bg-white hover:bg-blue-50 px-4 py-2 rounded text-xs font-bold uppercase tracking-wide"
+                            >
+                              Reschedule
+                            </button>
+                            <button
+                              onClick={() => handleCancel(appt.id)}
+                              className="text-red-500 border border-red-200 bg-white hover:bg-red-50 px-4 py-2 rounded text-xs font-bold uppercase tracking-wide"
+                            >
+                              Cancel
+                            </button>
+                          </>
+                        )}
+                        <button
+                          onClick={() => handleExportIcs(appt.id)}
+                          title="Export to Calendar"
+                          className="text-gray-500 border border-gray-200 bg-white hover:bg-gray-50 px-3 py-2 rounded text-xs font-bold uppercase tracking-wide"
+                        >
+                          📅
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         )}
 
-        <p className="text-center mt-4 text-xs text-gray-400">
-          {isSignUp ? 'Already have an account?' : "New client?"}{' '}
-          <button onClick={() => setIsSignUp(!isSignUp)} className="text-black underline font-bold">
-            {isSignUp ? 'Login' : 'Sign Up'}
-          </button>
-        </p>
+        {/* TAB 2: SETTINGS */}
+        {activeTab === 'settings' && (
+          <div className="bg-white p-8 rounded-lg shadow-sm border border-gray-200">
+            <div className="grid grid-cols-2 gap-4 mb-8 border-b border-gray-100 pb-8">
+              <div>
+                <p className="text-xs font-bold uppercase text-gray-400 mb-1">Account Role</p>
+                <span className="bg-blue-100 text-blue-800 text-[10px] px-2 py-1 rounded uppercase font-bold">{role || 'Customer'}</span>
+              </div>
+              <div>
+                <p className="text-xs font-bold uppercase text-gray-400 mb-1">Loyalty Balance</p>
+                <span className="text-lg font-mono font-bold text-black">{points} Points</span>
+              </div>
+            </div>
+
+            <h3 className="font-bold text-sm text-gray-800 mb-6 uppercase tracking-widest">Update Password</h3>
+            <form onSubmit={handlePasswordChange} className="space-y-4 max-w-md">
+              <input type="password" required minLength={6} placeholder="New Password" className="w-full border p-2 rounded bg-gray-50 text-sm" value={newPassword} onChange={e => setNewPassword(e.target.value)}/>
+              <button disabled={pwLoading} className="bg-black text-white px-6 py-3 text-xs font-bold uppercase rounded hover:bg-gray-800 disabled:opacity-50">{pwLoading ? 'Updating...' : 'Save Changes'}</button>
+            </form>
+          </div>
+        )}
+
       </div>
+
+      {/* Reschedule Modal */}
+      {reschedulingBooking && (
+        <BookingModal
+          service={reschedulingBooking.services}
+          onClose={() => setReschedulingBooking(null)}
+          onConfirm={handleReschedule}
+          isRescheduling={true}
+        />
+      )}
     </div>
   );
 }
