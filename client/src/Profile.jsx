@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import { supabase } from './lib/supabase';
 import API_URL from './config';
+import BookingModal from './BookingModal';
 
 export default function Profile({ onBack }) {
   const { user, role } = useAuth();
@@ -11,11 +12,11 @@ export default function Profile({ onBack }) {
   const [loadingAppts, setLoadingAppts] = useState(true);
   const [newPassword, setNewPassword] = useState('');
   const [pwLoading, setPwLoading] = useState(false);
-  const [points, setPoints] = useState(0); 
+  const [points, setPoints] = useState(0);
+  const [reschedulingBooking, setReschedulingBooking] = useState(null);
 
   useEffect(() => {
     if (user?.id) {
-      // Fetch Appointments
       supabase.auth.getSession().then(({ data: sessionData }) => {
         const token = sessionData?.session?.access_token;
         fetch(`${API_URL}/api/bookings/customer/${user.id}`, {
@@ -26,7 +27,6 @@ export default function Profile({ onBack }) {
           .catch(err => { console.error(err); setLoadingAppts(false); });
       });
 
-      // Fetch Points
       supabase.from('profiles').select('loyalty_points').eq('id', user.id).single()
         .then(({ data }) => { if(data) setPoints(data.loyalty_points || 0); });
     }
@@ -41,8 +41,53 @@ export default function Profile({ onBack }) {
       headers: { Authorization: `Bearer ${token}` }
     });
     if (res.ok) {
-        alert("Booking cancelled.");
-        setAppointments(prev => prev.filter(b => b.id !== bookingId));
+      alert("Booking cancelled.");
+      setAppointments(prev => prev.filter(b => b.id !== bookingId));
+    }
+  };
+
+  const handleReschedule = async (stylistId, newStartTime) => {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData?.session?.access_token;
+    const res = await fetch(`${API_URL}/api/bookings/${reschedulingBooking.id}/reschedule`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ new_start_time: newStartTime }),
+    });
+    if (res.ok) {
+      alert("Booking rescheduled! Check your email for confirmation.");
+      setReschedulingBooking(null);
+      // Refresh appointments
+      const refreshRes = await fetch(`${API_URL}/api/bookings/customer/${user.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await refreshRes.json();
+      setAppointments(Array.isArray(data) ? data : []);
+    } else {
+      const err = await res.json().catch(() => ({}));
+      alert(`Failed to reschedule: ${err.error || res.status}`);
+    }
+  };
+
+  const handleExportIcs = async (bookingId) => {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData?.session?.access_token;
+    const res = await fetch(`${API_URL}/api/bookings/${bookingId}/export`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (res.ok) {
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `booking-${bookingId}.ics`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } else {
+      alert('Failed to export calendar file.');
     }
   };
 
@@ -61,11 +106,11 @@ export default function Profile({ onBack }) {
         
         {/* Header */}
         <div className="flex justify-between items-end mb-8">
-           <div>
-             <h1 className="text-3xl font-light uppercase tracking-widest text-gray-800">My Account</h1>
-             <p className="text-sm text-gray-500 mt-1">{user?.email}</p>
-           </div>
-           <button onClick={onBack} className="text-sm underline hover:text-red-500">Back to Home</button>
+          <div>
+            <h1 className="text-3xl font-light uppercase tracking-widest text-gray-800">My Account</h1>
+            <p className="text-sm text-gray-500 mt-1">{user?.email}</p>
+          </div>
+          <button onClick={onBack} className="text-sm underline hover:text-red-500">Back to Home</button>
         </div>
 
         {/* Tabs */}
@@ -77,59 +122,90 @@ export default function Profile({ onBack }) {
         {/* TAB 1: APPOINTMENTS */}
         {activeTab === 'appointments' && (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 min-h-[400px]">
-             {loadingAppts ? <div className="p-10 text-center text-gray-400">Loading...</div> : appointments.length === 0 ? <div className="p-16 text-center text-gray-400">No bookings found.</div> : (
-               <div className="divide-y divide-gray-100">
-                 {appointments.map(appt => {
-                   const start = new Date(appt.start_time);
-                   const isPast = new Date() > start;
-                   return (
-                     <div key={appt.id} className="p-6 flex justify-between items-center hover:bg-gray-50 transition">
-                        <div>
-                           <h3 className="font-bold text-gray-800 text-lg">{appt.services?.name}</h3>
-                           <p className="text-sm text-gray-500">with {appt.stylists?.name} • £{appt.services?.base_price}</p>
-                           <p className="text-xs font-mono mt-1 text-gray-400">{start.toLocaleString()}</p>
-                        </div>
-                        <div>
-                          {isPast || appt.status === 'completed' ? (
-                             <span className="bg-gray-100 text-gray-500 text-[10px] font-bold px-3 py-1 rounded uppercase">Completed</span>
-                          ) : (
-                             <button onClick={() => handleCancel(appt.id)} className="text-red-500 border border-red-200 bg-white hover:bg-red-50 px-4 py-2 rounded text-xs font-bold uppercase tracking-wide">Cancel</button>
-                          )}
-                        </div>
-                     </div>
-                   )
-                 })}
-               </div>
-             )}
+            {loadingAppts ? (
+              <div className="p-10 text-center text-gray-400">Loading...</div>
+            ) : appointments.length === 0 ? (
+              <div className="p-16 text-center text-gray-400">No bookings found.</div>
+            ) : (
+              <div className="divide-y divide-gray-100">
+                {appointments.map(appt => {
+                  const start = new Date(appt.start_time);
+                  const isPast = new Date() > start;
+                  return (
+                    <div key={appt.id} className="p-6 flex justify-between items-center hover:bg-gray-50 transition">
+                      <div>
+                        <h3 className="font-bold text-gray-800 text-lg">{appt.services?.name}</h3>
+                        <p className="text-sm text-gray-500">with {appt.stylists?.name} • £{appt.services?.base_price}</p>
+                        <p className="text-xs font-mono mt-1 text-gray-400">{start.toLocaleString()}</p>
+                      </div>
+                      <div className="flex gap-2 items-center">
+                        {isPast || appt.status === 'completed' ? (
+                          <span className="bg-gray-100 text-gray-500 text-[10px] font-bold px-3 py-1 rounded uppercase">Completed</span>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => setReschedulingBooking(appt)}
+                              className="text-blue-500 border border-blue-200 bg-white hover:bg-blue-50 px-4 py-2 rounded text-xs font-bold uppercase tracking-wide"
+                            >
+                              Reschedule
+                            </button>
+                            <button
+                              onClick={() => handleCancel(appt.id)}
+                              className="text-red-500 border border-red-200 bg-white hover:bg-red-50 px-4 py-2 rounded text-xs font-bold uppercase tracking-wide"
+                            >
+                              Cancel
+                            </button>
+                          </>
+                        )}
+                        <button
+                          onClick={() => handleExportIcs(appt.id)}
+                          title="Export to Calendar"
+                          className="text-gray-500 border border-gray-200 bg-white hover:bg-gray-50 px-3 py-2 rounded text-xs font-bold uppercase tracking-wide"
+                        >
+                          📅
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 
-        {/* TAB  SETTINGS  */}
+        {/* TAB 2: SETTINGS */}
         {activeTab === 'settings' && (
           <div className="bg-white p-8 rounded-lg shadow-sm border border-gray-200">
-             
-             {/* 1. Account Info & Points */}
-             <div className="grid grid-cols-2 gap-4 mb-8 border-b border-gray-100 pb-8">
-               <div>
-                 <p className="text-xs font-bold uppercase text-gray-400 mb-1">Account Role</p>
-                 <span className="bg-blue-100 text-blue-800 text-[10px] px-2 py-1 rounded uppercase font-bold">{role || 'Customer'}</span>
-               </div>
-               <div>
-                 <p className="text-xs font-bold uppercase text-gray-400 mb-1">Loyalty Balance</p>
-                 <span className="text-lg font-mono font-bold text-black">{points} Points</span>
-               </div>
-             </div>
+            <div className="grid grid-cols-2 gap-4 mb-8 border-b border-gray-100 pb-8">
+              <div>
+                <p className="text-xs font-bold uppercase text-gray-400 mb-1">Account Role</p>
+                <span className="bg-blue-100 text-blue-800 text-[10px] px-2 py-1 rounded uppercase font-bold">{role || 'Customer'}</span>
+              </div>
+              <div>
+                <p className="text-xs font-bold uppercase text-gray-400 mb-1">Loyalty Balance</p>
+                <span className="text-lg font-mono font-bold text-black">{points} Points</span>
+              </div>
+            </div>
 
-             {/* 2. Security Form */}
-             <h3 className="font-bold text-sm text-gray-800 mb-6 uppercase tracking-widest">Update Password</h3>
-             <form onSubmit={handlePasswordChange} className="space-y-4 max-w-md">
-               <input type="password" required minLength={6} placeholder="New Password" className="w-full border p-2 rounded bg-gray-50 text-sm" value={newPassword} onChange={e => setNewPassword(e.target.value)}/>
-               <button disabled={pwLoading} className="bg-black text-white px-6 py-3 text-xs font-bold uppercase rounded hover:bg-gray-800 disabled:opacity-50">{pwLoading ? 'Updating...' : 'Save Changes'}</button>
-             </form>
+            <h3 className="font-bold text-sm text-gray-800 mb-6 uppercase tracking-widest">Update Password</h3>
+            <form onSubmit={handlePasswordChange} className="space-y-4 max-w-md">
+              <input type="password" required minLength={6} placeholder="New Password" className="w-full border p-2 rounded bg-gray-50 text-sm" value={newPassword} onChange={e => setNewPassword(e.target.value)}/>
+              <button disabled={pwLoading} className="bg-black text-white px-6 py-3 text-xs font-bold uppercase rounded hover:bg-gray-800 disabled:opacity-50">{pwLoading ? 'Updating...' : 'Save Changes'}</button>
+            </form>
           </div>
         )}
 
       </div>
+
+      {/* Reschedule Modal */}
+      {reschedulingBooking && (
+        <BookingModal
+          service={reschedulingBooking.services}
+          onClose={() => setReschedulingBooking(null)}
+          onConfirm={handleReschedule}
+          isRescheduling={true}
+        />
+      )}
     </div>
   );
 }
