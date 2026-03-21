@@ -57,7 +57,8 @@ function App() {
       alert('Booking Confirmed! Check your email.');
       setSelectedService(null);
     } else {
-      alert('Failed to book.');
+      const err = await response.json().catch(() => ({}));
+      alert(`Failed to book: ${err.error || response.status}`);
     }
   };
 
