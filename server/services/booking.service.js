@@ -4,7 +4,7 @@ const profilesDao = require('../daos/profiles.dao');
 const servicesDao = require('../daos/services.dao');
 const stylistsDao = require('../daos/stylists.dao');
 const { calculatePrice } = require('../utils/pricing');
-const { sendEmail } = require('./email.service');
+const { sendEmail, bookingConfirmationTemplate, cancellationTemplate } = require('./email.service');
 
 async function createBooking({ customer_id, service_id, stylist_id, start_time }) {
   // Fetch service and stylist details needed for calculation
@@ -39,14 +39,18 @@ async function createBooking({ customer_id, service_id, stylist_id, start_time }
   // Send confirmation email
   const profile = await profilesDao.getProfileById(customer_id);
   if (profile?.email) {
-    await sendEmail(
-      profile.email,
-      'Booking Confirmed - Hair By Amnesia',
-      `<p>Hi ${profile.full_name},</p>
-       <p>Your <strong>${service.name}</strong> with ${stylist.name} is confirmed for ${start.toLocaleString()}.</p>
-       <p>Price: £${finalPrice}</p>`
-    );
-  }
+  await sendEmail(
+    profile.email,
+    'Booking Confirmed - Hair By Amnesia',
+    bookingConfirmationTemplate({
+      fullName: profile.full_name,
+      serviceName: service.name,
+      stylistName: stylist.name,
+      startTime: start,
+      price: finalPrice,
+    })
+  );
+}
 
   return { booking, price: finalPrice };
 }
@@ -90,14 +94,18 @@ async function createGuestBooking({ guestName, guestPhone, guestEmail, serviceId
   const finalPrice = calculatePrice(service.base_price, stylist.price_multiplier, startTime);
 
   if (guestEmail) {
-    await sendEmail(
-      guestEmail,
-      'Appointment Confirmed - Hair By Amnesia',
-      `<p>Hi ${guestName},</p>
-       <p>Your <strong>${service.name}</strong> with ${stylist.name} is confirmed for ${start.toLocaleString()}.</p>
-       <p>Price: £${finalPrice}</p>`
-    );
-  }
+  await sendEmail(
+    guestEmail,
+    'Booking Confirmed - Hair By Amnesia',
+    bookingConfirmationTemplate({
+      fullName: guestName,
+      serviceName: service.name,
+      stylistName: stylist.name,
+      startTime: start,
+      price: finalPrice,
+    })
+  );
+}
 
   return { guest, booking, price: finalPrice };
 }
@@ -105,13 +113,12 @@ async function createGuestBooking({ guestName, guestPhone, guestEmail, serviceId
 async function cancelBooking(id) {
   const data = await bookingsDao.cancelBooking(id);
   if (data?.profiles?.email) {
-    await sendEmail(
-      data.profiles.email,
-      'Cancellation Confirmed - Hair By Amnesia',
-      `<p>Your <strong>${data.services.name}</strong> appointment has been cancelled.</p>
-       <p>If you have any questions, please contact us.</p>`
-    );
-  }
+  await sendEmail(
+    data.profiles.email,
+    'Cancellation Confirmed - Hair By Amnesia',
+    cancellationTemplate({ serviceName: data.services.name })
+  );
+}
   return data;
 }
 
