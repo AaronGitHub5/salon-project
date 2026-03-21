@@ -18,14 +18,14 @@ export default function Login() {
     
     try {
       if (isSignUp) {
-        const { error } = await signUp({ 
-          email, 
-          password, 
+        const { error } = await signUp({
+          email,
+          password,
           options: {
             data: {
-              full_name: fullName, 
+              full_name: fullName,
             },
-          } 
+          }
         });
         if (error) {
           if (error.message.includes('User already registered')) {
