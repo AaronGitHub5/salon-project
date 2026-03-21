@@ -16,10 +16,15 @@ export default function Profile({ onBack }) {
   useEffect(() => {
     if (user?.id) {
       // Fetch Appointments
-      fetch(`${API_URL}/api/bookings/customer/${user.id}`)
-        .then(res => res.json())
-        .then(data => { setAppointments(data); setLoadingAppts(false); })
-        .catch(err => console.error(err));
+      supabase.auth.getSession().then(({ data: sessionData }) => {
+        const token = sessionData?.session?.access_token;
+        fetch(`${API_URL}/api/bookings/customer/${user.id}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+          .then(res => res.json())
+          .then(data => { setAppointments(Array.isArray(data) ? data : []); setLoadingAppts(false); })
+          .catch(err => { console.error(err); setLoadingAppts(false); });
+      });
 
       // Fetch Points
       supabase.from('profiles').select('loyalty_points').eq('id', user.id).single()
@@ -29,7 +34,12 @@ export default function Profile({ onBack }) {
 
   const handleCancel = async (bookingId) => {
     if (!confirm("Cancel this appointment?")) return;
-    const res = await fetch(`${API_URL}/api/bookings/${bookingId}/cancel`, { method: 'PUT' });
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData?.session?.access_token;
+    const res = await fetch(`${API_URL}/api/bookings/${bookingId}/cancel`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}` }
+    });
     if (res.ok) {
         alert("Booking cancelled.");
         setAppointments(prev => prev.filter(b => b.id !== bookingId));
