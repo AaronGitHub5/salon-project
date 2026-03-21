@@ -9,11 +9,11 @@ const { sendEmail, bookingConfirmationTemplate, cancellationTemplate } = require
 async function createBooking({ customer_id, service_id, stylist_id, start_time }) {
   // Fetch service and stylist details needed for calculation
   const services = await servicesDao.getAllServices();
-  const service = services.find((s) => s.id === service_id);
+  const service = services.find((s) => s.id == service_id);
   if (!service) throw new Error('Service not found');
 
   const stylists = await stylistsDao.getAllStylists();
-  const stylist = stylists.find((s) => s.id === stylist_id);
+  const stylist = stylists.find((s) => s.id == stylist_id);
   if (!stylist) throw new Error('Stylist not found');
 
   const start = new Date(start_time);
@@ -63,11 +63,11 @@ async function createGuestBooking({ guestName, guestPhone, guestEmail, serviceId
   });
 
   const services = await servicesDao.getAllServices();
-  const service = services.find((s) => s.id === serviceId);
+  const service = services.find((s) => s.id == serviceId);
   if (!service) throw new Error('Service not found');
 
   const stylists = await stylistsDao.getAllStylists();
-  const stylist = stylists.find((s) => s.id === stylistId);
+  const stylist = stylists.find((s) => s.id == stylistId);
   if (!stylist) throw new Error('Stylist not found');
 
   const start = new Date(startTime);
