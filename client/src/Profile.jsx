@@ -4,8 +4,8 @@ import { supabase } from './lib/supabase';
 import API_URL from './config';
 import BookingModal from './BookingModal';
 
-const LOYALTY_GOAL = 200;
-const MILESTONES = [40, 80, 120, 160, 200];
+const LOYALTY_GOAL = 10;
+const MILESTONES = [2, 4, 6, 8, 10];
 
 function LoyaltyRing({ points, goal }) {
   const radius = 54;
@@ -32,7 +32,7 @@ function LoyaltyRing({ points, goal }) {
         {points}
       </text>
       <text x="70" y="82" textAnchor="middle" style={{ fontSize: '9px', fill: '#9ca3af', letterSpacing: '2px' }}>
-        POINTS
+        VISITS
       </text>
     </svg>
   );
@@ -50,6 +50,8 @@ export default function Profile({ onBack }) {
   const [reschedulingBooking, setReschedulingBooking] = useState(null);
   const [voucherCode, setVoucherCode] = useState(null);
   const [redeeming, setRedeeming] = useState(false);
+  const [vouchers, setVouchers] = useState([]);
+  const [loadingVouchers, setLoadingVouchers] = useState(false);
 
   const token = session?.access_token;
   const authHeader = { Authorization: `Bearer ${token}` };
@@ -63,6 +65,13 @@ export default function Profile({ onBack }) {
 
       supabase.from('profiles').select('loyalty_points').eq('id', user.id).single()
         .then(({ data }) => { if (data) setPoints(data.loyalty_points || 0); });
+
+      // Fetch vouchers
+      setLoadingVouchers(true);
+      fetch(`${API_URL}/api/profiles/vouchers`, { headers: authHeader })
+        .then(res => res.json())
+        .then(data => { setVouchers(Array.isArray(data) ? data : []); setLoadingVouchers(false); })
+        .catch(() => setLoadingVouchers(false));
     }
   }, [user]);
 
@@ -114,7 +123,7 @@ export default function Profile({ onBack }) {
 
   const handleRedeem = async () => {
     if (points < LOYALTY_GOAL) return;
-    if (!confirm('Redeem 200 points for a voucher code?')) return;
+    if (!confirm('Redeem your 10 visits for a 10% discount voucher?')) return;
     setRedeeming(true);
     try {
       const res = await fetch(`${API_URL}/api/profiles/redeem`, {
@@ -124,7 +133,8 @@ export default function Profile({ onBack }) {
       const data = await res.json();
       if (res.ok) {
         setVoucherCode(data.code);
-        setPoints(data.pointsRemaining);
+        setPoints(data.visitsRemaining);
+        setVouchers(prev => [{ id: data.voucherId, code: data.code, discount: data.discount, used: false, created_at: new Date().toISOString() }, ...prev]);
       } else {
         alert(data.error || 'Failed to redeem points.');
       }
@@ -145,7 +155,8 @@ export default function Profile({ onBack }) {
   };
 
   const canRedeem = points >= LOYALTY_GOAL;
-  const remaining = Math.max(LOYALTY_GOAL - points, 0);
+  const visits = points;
+  const remaining = Math.max(LOYALTY_GOAL - visits, 0);
 
   return (
     <div className="min-h-screen bg-gray-50 p-6 font-sans">
@@ -223,7 +234,7 @@ export default function Profile({ onBack }) {
 
         {/* TAB 2: LOYALTY */}
         {activeTab === 'loyalty' && (
-          <div className="grid md:grid-cols-2 gap-8">
+          <div className="grid md:grid-cols-2 gap-8 grid-flow-row">
             {/* Loyalty Card */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 flex flex-col items-center">
               <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-6">Loyalty Card</h2>
@@ -231,7 +242,7 @@ export default function Profile({ onBack }) {
               <LoyaltyRing points={points} goal={LOYALTY_GOAL} />
 
               <p className="text-xs text-gray-400 uppercase tracking-widest mt-4">
-                {Math.round((points / LOYALTY_GOAL) * 100)}% · Goal: {LOYALTY_GOAL} Points
+                {visits} of {LOYALTY_GOAL} visits
               </p>
 
               {/* Milestone checkmarks */}
@@ -274,9 +285,34 @@ export default function Profile({ onBack }) {
 
               <p className="text-[10px] text-gray-400 mt-2">
                 {canRedeem
-                  ? 'You have enough points to redeem a voucher!'
-                  : `Unlocks at ${LOYALTY_GOAL} points · ${remaining} remaining`}
+                  ? 'You have enough visits to redeem a voucher!'
+                  : `Unlocks at ${LOYALTY_GOAL} visits · ${remaining} remaining`}
               </p>
+            </div>
+
+            {/* My Vouchers */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 md:col-span-2">
+              <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-6">My Vouchers</h2>
+              {loadingVouchers ? (
+                <div className="text-center text-gray-400 animate-pulse py-4">Loading...</div>
+              ) : vouchers.length === 0 ? (
+                <div className="text-center text-gray-400 py-6 text-sm">No vouchers yet. Complete 10 visits to earn one.</div>
+              ) : (
+                <div className="grid md:grid-cols-3 gap-4">
+                  {vouchers.map(v => (
+                    <div key={v.id} className={`border rounded-lg p-4 ${v.used ? 'border-gray-100 bg-gray-50' : 'border-black bg-white'}`}>
+                      <div className="flex justify-between items-start mb-2">
+                        <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded ${v.used ? 'bg-gray-200 text-gray-400' : 'bg-black text-white'}`}>
+                          {v.used ? 'Used' : `${v.discount}% Off`}
+                        </span>
+                        <span className="text-[10px] text-gray-400">{new Date(v.created_at).toLocaleDateString('en-GB')}</span>
+                      </div>
+                      <p className={`font-mono font-bold text-lg mt-2 ${v.used ? 'text-gray-400 line-through' : 'text-black'}`}>{v.code}</p>
+                      {!v.used && <p className="text-[10px] text-gray-400 mt-1">Show this at your appointment</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Past Appointments */}
@@ -330,7 +366,7 @@ export default function Profile({ onBack }) {
               </div>
               <div>
                 <p className="text-xs font-bold uppercase text-gray-400 mb-1">Loyalty Balance</p>
-                <span className="text-lg font-mono font-bold text-black">{points} Points</span>
+                <span className="text-lg font-mono font-bold text-black">{visits} Visits</span>
               </div>
             </div>
             <h3 className="font-bold text-sm text-gray-800 mb-6 uppercase tracking-widest">Update Password</h3>

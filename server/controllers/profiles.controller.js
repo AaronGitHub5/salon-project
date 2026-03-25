@@ -10,4 +10,14 @@ async function redeemPoints(req, res) {
   }
 }
 
-module.exports = { redeemPoints };
+async function getVouchers(req, res) {
+  try {
+    const userId = req.user.id;
+    const vouchers = await profilesDao.getVouchers(userId);
+    res.json(vouchers);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
+module.exports = { redeemPoints, getVouchers };

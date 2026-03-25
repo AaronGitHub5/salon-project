@@ -96,11 +96,10 @@ async function completeBooking(id) {
   await bookingsDao.completeBooking(id);
 
   if (booking.customer_id) {
-    // Award loyalty points
-    const points = Math.floor(booking.services.base_price);
+    // Award 1 visit stamp
     const profile = await profilesDao.getProfileById(booking.customer_id);
-    const newPoints = (profile.loyalty_points || 0) + points;
-    await profilesDao.updateLoyaltyPoints(booking.customer_id, newPoints);
+    const newVisits = (profile.loyalty_points || 0) + 1;
+    await profilesDao.updateLoyaltyPoints(booking.customer_id, newVisits);
 
     // Send review request email
     if (profile?.email) {
@@ -115,10 +114,10 @@ async function completeBooking(id) {
       );
     }
 
-    return { message: 'Booking completed', pointsAdded: points };
+    return { message: 'Booking completed', visitsAdded: 1, totalVisits: newVisits };
   }
 
-  return { message: 'Guest booking completed (no points awarded)' };
+  return { message: 'Guest booking completed (no loyalty stamp awarded)' };
 }
 
 async function rescheduleBooking(id, newStartTime) {
