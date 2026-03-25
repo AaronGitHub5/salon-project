@@ -21,11 +21,8 @@ export default function StylistSchedule({ onBack }) {
         if (!me) { setLoading(false); return; }
         setStylistProfile(me);
 
-        const bookingRes = await fetch(`${API_URL}/api/bookings`, { headers: authHeader });
-        const allBookings = await bookingRes.json();
-        const mine = allBookings
-          .filter(b => b.stylist_id == me.id && b.status !== 'cancelled')
-          .sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+        const bookingRes = await fetch(`${API_URL}/api/bookings/stylist/${me.id}`, { headers: authHeader });
+        const mine = await bookingRes.json();
 
         setMyBookings(mine);
       } catch (error) {

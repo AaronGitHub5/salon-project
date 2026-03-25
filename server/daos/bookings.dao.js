@@ -21,6 +21,17 @@ async function getBookingById(id) {
   return data;
 }
 
+async function getStylistBookings(stylistId) {
+  const { data, error } = await supabase
+    .from('bookings')
+    .select(`*, services(name, base_price), profiles(full_name), guests(full_name)`)
+    .eq('stylist_id', stylistId)
+    .neq('status', 'cancelled')
+    .order('start_time', { ascending: true });
+  if (error) throw error;
+  return data;
+}
+
 async function getCustomerBookings(customerId) {
   const { data, error } = await supabase
     .from('bookings')
@@ -105,6 +116,7 @@ async function checkConflict(stylistId, startTime, endTime, excludeBookingId = n
 module.exports = {
   getAllBookings,
   getBookingById,
+  getStylistBookings,
   getCustomerBookings,
   createBooking,
   createGuestBooking,

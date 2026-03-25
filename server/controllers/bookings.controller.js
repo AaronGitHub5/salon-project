@@ -39,6 +39,15 @@ async function getByCustomer(req, res) {
   }
 }
 
+async function getByStylist(req, res) {
+  try {
+    const data = await bookingsDao.getStylistBookings(req.params.id);
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
 async function cancel(req, res) {
   try {
     const data = await bookingService.cancelBooking(req.params.id);
@@ -80,4 +89,4 @@ async function exportIcs(req, res) {
   }
 }
 
-module.exports = { getAll, create, createGuest, getByCustomer, cancel, complete, reschedule, exportIcs };
+module.exports = { getAll, create, createGuest, getByCustomer, getByStylist, cancel, complete, reschedule, exportIcs };
