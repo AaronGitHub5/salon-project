@@ -3,7 +3,7 @@ import { supabase } from './lib/supabase';
 
 const AuthContext = createContext();
 
-const AUTH_VERSION = '6';
+const AUTH_VERSION = '7';
 
 function nukeStorage() {
   Object.keys(localStorage).forEach((key) => {
