@@ -9,17 +9,12 @@ import StylistSchedule from './StylistSchedule';
 import API_URL from './config';
 
 function App() {
-  const { user, role, signOut } = useAuth();
+  const { user, role, session, signOut } = useAuth();
   const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedService, setSelectedService] = useState(null);
-  const [view, setView] = useState('customer'); 
+  const [view, setView] = useState('customer');
 
-  // Debugging
-  console.log("Current User:", user?.email);
-  console.log("Current Role:", role);
-
-  // FETCH DATA 
   useEffect(() => {
     if (user && view === 'customer') {
       setLoading(true);
@@ -36,14 +31,12 @@ function App() {
     }
   }, [user, view]);
 
-  //  HANDLE BOOKING
   const handleBooking = async (stylistId, startTime) => {
-    const { data: { session } } = await supabase.auth.getSession();
     const response = await fetch(`${API_URL}/api/bookings`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session?.access_token}`,
+        Authorization: `Bearer ${session?.access_token}`,
       },
       body: JSON.stringify({
         customer_id: user.id,
@@ -62,28 +55,17 @@ function App() {
     }
   };
 
-  //  LOGOUT
   const handleLogout = async () => {
     await signOut();
-    window.location.reload(); 
+    window.location.reload();
   };
 
-  //  AUTH GUARDS
   if (!user) return <Login />;
 
-  if (view === 'admin') {
-    return <AdminDashboard onBack={() => setView('customer')} />;
-  }
+  if (view === 'admin') return <AdminDashboard onBack={() => setView('customer')} />;
+  if (view === 'profile') return <Profile onBack={() => setView('customer')} />;
+  if (view === 'stylist') return <StylistSchedule onBack={() => setView('customer')} />;
 
-  if (view === 'profile') {
-    return <Profile onBack={() => setView('customer')} />;
-  }
-
-  if (view === 'stylist') {
-    return <StylistSchedule onBack={() => setView('customer')} />;
-  }
-
-  //  GROUP SERVICES
   const groupedServices = services.reduce((acc, service) => {
     const cat = service.category || 'Other Services';
     if (!acc[cat]) acc[cat] = [];
@@ -94,7 +76,7 @@ function App() {
 
   return (
     <div className="min-h-screen bg-white font-sans text-gray-900 tracking-wide selection:bg-black selection:text-white">
-      
+
       {/* Navigation */}
       <nav className="fixed w-full bg-white/95 backdrop-blur-sm border-b border-gray-100 z-40 transition-all duration-300">
         <div className="max-w-6xl mx-auto px-6 h-20 flex items-center justify-between">
@@ -103,15 +85,13 @@ function App() {
           </div>
 
           <div className="flex items-center gap-6">
-            
             <button
               onClick={() => setView('profile')}
               className="text-xs uppercase tracking-widest text-gray-500 hover:text-black hidden md:block border-b border-transparent hover:border-black transition"
             >
-              {user?.email} 
+              {user?.email}
             </button>
 
-            {/* DIRECT CHECK FOR ADMIN ROLE */}
             {role === 'admin' && (
               <button
                 onClick={() => setView('admin')}
@@ -192,7 +172,6 @@ function App() {
         )}
       </main>
 
-      {/* Modals */}
       {selectedService && (
         <BookingModal
           service={selectedService}

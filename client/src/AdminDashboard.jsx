@@ -2,12 +2,12 @@ import { useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import GuestBookingModal from './GuestBookingModal';
 import AdminAnalytics from './AdminAnalytics';
-import API_URL from './config'; 
+import API_URL from './config';
 
 export default function AdminDashboard({ onBack }) {
-  const { user, signOut } = useAuth();
-  
-  const [activeTab, setActiveTab] = useState('analytics'); 
+  const { user, session, signOut } = useAuth();
+
+  const [activeTab, setActiveTab] = useState('analytics');
   const [services, setServices] = useState([]);
   const [formData, setFormData] = useState({ name: '', price: '', duration: 60, category: 'Cutting & Styling' });
   const [editingId, setEditingId] = useState(null);
@@ -15,8 +15,13 @@ export default function AdminDashboard({ onBack }) {
   const [showGuestModal, setShowGuestModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const authHeader = {
+    Authorization: `Bearer ${session?.access_token}`,
+    'Content-Type': 'application/json',
+  };
+
   useEffect(() => {
-    fetch(`${API_URL}/api/services`) 
+    fetch(`${API_URL}/api/services`)
       .then((res) => res.json())
       .then((data) => setServices(data))
       .catch((err) => console.error('Error fetching services:', err));
@@ -28,39 +33,57 @@ export default function AdminDashboard({ onBack }) {
     const price = parseFloat(formData.price);
     const duration = parseInt(formData.duration);
 
-    const url = editingId ? `${API_URL}/api/services/${editingId}` : `${API_URL}/api/services`; 
+    const url = editingId ? `${API_URL}/api/services/${editingId}` : `${API_URL}/api/services`;
     const method = editingId ? 'PUT' : 'POST';
 
     try {
       await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeader,
         body: JSON.stringify({ name: formData.name, base_price: price, duration_minutes: duration, category: formData.category }),
       });
       setEditingId(null);
       setFormData({ name: '', price: '', duration: 60, category: 'Cutting & Styling' });
       setRefresh(p => p + 1);
-    } catch (err) { console.error(err); }
-    finally { setIsSubmitting(false); }
+    } catch (err) {
+      console.error(err);
+      alert('Something went wrong. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleDelete = async (id) => {
     if (!confirm('Delete service?')) return;
-    await fetch(`${API_URL}/api/services/${id}`, { method: 'DELETE' }); 
-    setRefresh(p => p + 1);
+    try {
+      await fetch(`${API_URL}/api/services/${id}`, {
+        method: 'DELETE',
+        headers: authHeader,
+      });
+      setRefresh(p => p + 1);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to delete service.');
+    }
   };
 
   const handleGuestBooking = async (bookingData) => {
-    const res = await fetch(`${API_URL}/api/bookings/guest`, { 
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(bookingData),
-    });
-    if (res.ok) {
-      alert("Shadow Booking Created!");
-      setShowGuestModal(false);
-    } else {
-      alert("Failed to create booking.");
+    try {
+      const res = await fetch(`${API_URL}/api/bookings/guest`, {
+        method: 'POST',
+        headers: authHeader,
+        body: JSON.stringify(bookingData),
+      });
+      if (res.ok) {
+        alert('Shadow Booking Created!');
+        setShowGuestModal(false);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(`Failed to create booking: ${err.error || res.status}`);
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Something went wrong. Please try again.');
     }
   };
 
@@ -90,13 +113,13 @@ export default function AdminDashboard({ onBack }) {
       </header>
 
       <div className="flex gap-4 mb-8 border-b border-gray-200 pb-1">
-        <button 
+        <button
           onClick={() => setActiveTab('analytics')}
           className={`pb-2 px-4 text-sm font-bold uppercase tracking-widest transition ${activeTab === 'analytics' ? 'border-b-2 border-black text-black' : 'text-gray-400 hover:text-gray-600'}`}
         >
           Overview & Stats
         </button>
-        <button 
+        <button
           onClick={() => setActiveTab('services')}
           className={`pb-2 px-4 text-sm font-bold uppercase tracking-widest transition ${activeTab === 'services' ? 'border-b-2 border-black text-black' : 'text-gray-400 hover:text-gray-600'}`}
         >
@@ -127,30 +150,30 @@ export default function AdminDashboard({ onBack }) {
           <div className="md:col-span-1 bg-white p-6 rounded shadow-sm border border-gray-100 h-fit">
             <h2 className="font-bold mb-4">{editingId ? 'Edit Service' : 'Add New Service'}</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <input 
-                className="w-full border p-2 rounded bg-gray-50" 
-                placeholder="Service Name" 
-                value={formData.name} 
-                onChange={e => setFormData({...formData, name: e.target.value})} 
-                required 
+              <input
+                className="w-full border p-2 rounded bg-gray-50"
+                placeholder="Service Name"
+                value={formData.name}
+                onChange={e => setFormData({ ...formData, name: e.target.value })}
+                required
               />
-              <select 
-                className="w-full border p-2 rounded bg-gray-50" 
-                value={formData.category} 
-                onChange={e => setFormData({...formData, category: e.target.value})}
+              <select
+                className="w-full border p-2 rounded bg-gray-50"
+                value={formData.category}
+                onChange={e => setFormData({ ...formData, category: e.target.value })}
               >
                 <option>Cutting & Styling</option>
                 <option>Colour & Balayage</option>
                 <option>Treatments</option>
               </select>
               <div className="grid grid-cols-2 gap-2">
-                <input 
-                  type="number" className="border p-2 rounded bg-gray-50" placeholder="Price £" 
-                  value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} required 
+                <input
+                  type="number" className="border p-2 rounded bg-gray-50" placeholder="Price £"
+                  value={formData.price} onChange={e => setFormData({ ...formData, price: e.target.value })} required
                 />
-                <input 
-                  type="number" className="border p-2 rounded bg-gray-50" placeholder="Mins" 
-                  value={formData.duration} onChange={e => setFormData({...formData, duration: e.target.value})} required 
+                <input
+                  type="number" className="border p-2 rounded bg-gray-50" placeholder="Mins"
+                  value={formData.duration} onChange={e => setFormData({ ...formData, duration: e.target.value })} required
                 />
               </div>
               <button disabled={isSubmitting} className="w-full bg-black text-white p-2 rounded font-bold hover:bg-gray-800 disabled:opacity-50">
