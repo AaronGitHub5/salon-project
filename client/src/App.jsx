@@ -9,6 +9,8 @@ import StylistSchedule from './StylistSchedule';
 import ReviewModal from './ReviewModal';
 import API_URL from './config';
 
+const LOYALTY_GOAL = 10;
+
 function App() {
   const { user, role, session, signOut } = useAuth();
   const [services, setServices] = useState([]);
@@ -16,6 +18,7 @@ function App() {
   const [selectedService, setSelectedService] = useState(null);
   const [view, setView] = useState('customer');
   const [reviewBookingId, setReviewBookingId] = useState(null);
+  const [bookingSuccess, setBookingSuccess] = useState(null); // { points }
 
   // Detect ?review=<bookingId> in URL on load
   useEffect(() => {
@@ -60,8 +63,13 @@ function App() {
     });
 
     if (response.ok) {
-      alert('Booking Confirmed! Check your email.');
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('loyalty_points')
+        .eq('id', user.id)
+        .single();
       setSelectedService(null);
+      setBookingSuccess({ points: profile?.loyalty_points || 0 });
     } else {
       const err = await response.json().catch(() => ({}));
       alert(`Failed to book: ${err.error || response.status}`);
@@ -196,6 +204,42 @@ function App() {
           onClose={() => setSelectedService(null)}
           onConfirm={handleBooking}
         />
+      )}
+
+      {/* Booking Success Modal */}
+      {bookingSuccess && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
+          <div className="bg-white w-full max-w-sm shadow-2xl p-8 text-center">
+            <div className="w-12 h-12 rounded-full bg-black flex items-center justify-center mx-auto mb-4">
+              <span className="text-white text-xl">✓</span>
+            </div>
+            <h2 className="text-lg font-semibold uppercase tracking-widest mb-1">Booking Confirmed!</h2>
+            <p className="text-sm text-gray-400 mb-6">Check your email for details.</p>
+            <div className="bg-gray-50 rounded p-4 mb-6">
+              <p className="text-[10px] text-gray-400 uppercase tracking-widest mb-1">Your Loyalty Visits</p>
+              <p className="text-4xl font-bold text-black">{bookingSuccess.points}</p>
+              <p className="text-xs text-gray-400 mt-1">
+                {bookingSuccess.points >= LOYALTY_GOAL
+                  ? 'You can redeem a reward voucher!'
+                  : `${LOYALTY_GOAL - bookingSuccess.points} more visit${LOYALTY_GOAL - bookingSuccess.points === 1 ? '' : 's'} to your next reward`}
+              </p>
+              <div className="flex gap-1 justify-center mt-3">
+                {Array.from({ length: LOYALTY_GOAL }).map((_, i) => (
+                  <div
+                    key={i}
+                    className={`h-1.5 flex-1 rounded-full ${i < bookingSuccess.points ? 'bg-black' : 'bg-gray-200'}`}
+                  />
+                ))}
+              </div>
+            </div>
+            <button
+              onClick={() => setBookingSuccess(null)}
+              className="w-full bg-black text-white py-3 text-xs font-bold uppercase tracking-widest hover:bg-gray-800 transition"
+            >
+              Done
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Review Modal — opens when ?review=<bookingId> detected in URL */}
