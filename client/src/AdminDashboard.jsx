@@ -173,7 +173,7 @@ export default function AdminDashboard({ onBack }) {
 
       {activeTab === 'analytics' && (
         <div className="space-y-8 animate-fade-in">
-          <AdminAnalytics />
+          <AdminAnalytics token={session?.access_token} />
           <div className="bg-blue-50 p-6 rounded-lg border border-blue-100 flex justify-between items-center">
             <div>
               <h2 className="text-blue-900 font-bold text-lg">Operational Actions</h2>

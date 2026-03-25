@@ -1,28 +1,35 @@
 import { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import API_URL from './config'; 
+import API_URL from './config';
 
-export default function AdminAnalytics() {
+export default function AdminAnalytics({ token }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
   useEffect(() => {
-    fetch(`${API_URL}/api/analytics`) 
-      .then(res => res.json())
+    if (!token) return;
+    fetch(`${API_URL}/api/analytics`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(res => {
+        if (!res.ok) throw new Error(`${res.status}`);
+        return res.json();
+      })
       .then(d => {
         setData(d);
         setLoading(false);
       })
       .catch(err => {
-        console.error("Analytics Error:", err);
+        console.error('Analytics Error:', err);
         setError(true);
         setLoading(false);
       });
-  }, []);
+  }, [token]);
 
   if (loading) return <div className="p-12 text-center text-gray-400 animate-pulse">Calculating business metrics...</div>;
   if (error) return <div className="p-12 text-center text-red-500">Failed to load analytics data.</div>;
+  if (!data) return null;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -48,14 +55,14 @@ export default function AdminAnalytics() {
           <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400">Booking Volume</h3>
           <span className="text-[10px] bg-black text-white px-2 py-1 rounded">Last 30 Days</span>
         </div>
-        {data.chartData.length === 0 ? (
+        {!data.chartData?.length ? (
           <div className="h-48 flex items-center justify-center text-gray-300 text-sm italic">No booking data to display yet.</div>
         ) : (
           <div className="h-48 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={data.chartData}>
-                <XAxis dataKey="date" tick={{fontSize: 10, fill: '#9ca3af'}} axisLine={false} tickLine={false} tickFormatter={(str) => { const d = new Date(str); return `${d.getDate()}/${d.getMonth()+1}`; }} />
-                <Tooltip cursor={{fill: '#f3f4f6'}} contentStyle={{backgroundColor: '#000', border: 'none', borderRadius: '4px', color: '#fff'}} itemStyle={{color: '#fff', fontSize: '12px'}} />
+                <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} tickFormatter={(str) => { const d = new Date(str); return `${d.getDate()}/${d.getMonth() + 1}`; }} />
+                <Tooltip cursor={{ fill: '#f3f4f6' }} contentStyle={{ backgroundColor: '#000', border: 'none', borderRadius: '4px', color: '#fff' }} itemStyle={{ color: '#fff', fontSize: '12px' }} />
                 <Bar dataKey="bookings" radius={[4, 4, 0, 0]}>
                   {data.chartData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={index % 2 === 0 ? '#000000' : '#4b5563'} />
