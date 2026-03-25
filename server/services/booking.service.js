@@ -4,7 +4,13 @@ const profilesDao = require('../daos/profiles.dao');
 const servicesDao = require('../daos/services.dao');
 const stylistsDao = require('../daos/stylists.dao');
 const { calculatePrice } = require('../utils/pricing');
-const { sendEmail, bookingConfirmationTemplate, cancellationTemplate, rescheduleTemplate } = require('./email.service');
+const {
+  sendEmail,
+  bookingConfirmationTemplate,
+  cancellationTemplate,
+  rescheduleTemplate,
+  reviewRequestTemplate,
+} = require('./email.service');
 const ics = require('ics');
 
 async function createBooking({ customer_id, service_id, stylist_id, start_time }) {
@@ -90,10 +96,25 @@ async function completeBooking(id) {
   await bookingsDao.completeBooking(id);
 
   if (booking.customer_id) {
+    // Award loyalty points
     const points = Math.floor(booking.services.base_price);
     const profile = await profilesDao.getProfileById(booking.customer_id);
     const newPoints = (profile.loyalty_points || 0) + points;
     await profilesDao.updateLoyaltyPoints(booking.customer_id, newPoints);
+
+    // Send review request email
+    if (profile?.email) {
+      await sendEmail(
+        profile.email,
+        'How was your appointment? - Hair By Amnesia',
+        reviewRequestTemplate({
+          fullName: profile.full_name,
+          serviceName: booking.services.name,
+          bookingId: booking.id,
+        })
+      );
+    }
+
     return { message: 'Booking completed', pointsAdded: points };
   }
 

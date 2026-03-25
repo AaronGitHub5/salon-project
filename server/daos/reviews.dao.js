@@ -3,7 +3,7 @@ const supabase = require('../supabaseClient');
 async function createReview({ booking_id, customer_id, stylist_id, rating, comment }) {
   const { data, error } = await supabase
     .from('reviews')
-    .insert([{ booking_id, customer_id, stylist_id, rating, comment }])
+    .insert([{ booking_id, customer_id, stylist_id, rating, comment, approved: false }])
     .select()
     .single();
   if (error) throw error;
@@ -20,19 +20,41 @@ async function getReviewByBookingId(bookingId) {
   return data;
 }
 
+async function getPendingReviews() {
+  const { data, error } = await supabase
+    .from('reviews')
+    .select('id, rating, comment, created_at, profiles(full_name), stylists(name)')
+    .eq('approved', false)
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return data;
+}
+
+async function approveReview(id) {
+  const { data, error } = await supabase
+    .from('reviews')
+    .update({ approved: true })
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
 async function getReviewsSummary(limit = 6) {
-  // Recent reviews with joined profile and stylist names
+  // Only approved reviews shown publicly
   const { data: reviews, error: reviewsError } = await supabase
     .from('reviews')
     .select('rating, comment, created_at, profiles(full_name), stylists(name)')
+    .eq('approved', true)
     .order('created_at', { ascending: false })
     .limit(limit);
   if (reviewsError) throw reviewsError;
 
-  // Separate query for average 
   const { data: allRatings, error: aggError } = await supabase
     .from('reviews')
-    .select('rating');
+    .select('rating')
+    .eq('approved', true);
   if (aggError) throw aggError;
 
   const average =
@@ -48,5 +70,7 @@ async function getReviewsSummary(limit = 6) {
 module.exports = {
   createReview,
   getReviewByBookingId,
+  getPendingReviews,
+  approveReview,
   getReviewsSummary,
 };

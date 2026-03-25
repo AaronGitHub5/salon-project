@@ -80,10 +80,35 @@ function rescheduleTemplate({ fullName, serviceName, stylistName, newStartTime }
   `;
 }
 
+function reviewRequestTemplate({ fullName, serviceName, bookingId }) {
+  const reviewUrl = `https://hairbyamnesia.co.uk?review=${bookingId}`;
+  return `
+    <div style="font-family:sans-serif;max-width:600px;margin:0 auto;">
+      <h2 style="background:#111;color:#fff;padding:20px;">Hair By Amnesia</h2>
+      <div style="padding:24px;">
+        <p>Hi ${fullName},</p>
+        <p>We hope you enjoyed your <strong>${serviceName}</strong> appointment!</p>
+        <p>We'd love to hear your feedback — it only takes 30 seconds.</p>
+        <div style="text-align:center;margin:32px 0;">
+          <a href="${reviewUrl}"
+             style="background:#111;color:#fff;padding:14px 28px;text-decoration:none;font-weight:bold;border-radius:4px;">
+            Leave a Review
+          </a>
+        </div>
+        <p style="font-size:13px;color:#666;">
+          Or copy this link into your browser:<br/>
+          <a href="${reviewUrl}" style="color:#111;">${reviewUrl}</a>
+        </p>
+      </div>
+    </div>
+  `;
+}
+
 module.exports = {
   initMail,
   sendEmail,
   bookingConfirmationTemplate,
   cancellationTemplate,
   rescheduleTemplate,
+  reviewRequestTemplate,
 };

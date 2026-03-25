@@ -19,4 +19,22 @@ async function getReviewsSummary(req, res) {
   }
 }
 
-module.exports = { submitReview, getReviewsSummary };
+async function getPendingReviews(req, res) {
+  try {
+    const reviews = await reviewsService.getPendingReviews();
+    res.json(reviews);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
+async function approveReview(req, res) {
+  try {
+    const review = await reviewsService.approveReview(req.params.id);
+    res.json(review);
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message });
+  }
+}
+
+module.exports = { submitReview, getReviewsSummary, getPendingReviews, approveReview };
