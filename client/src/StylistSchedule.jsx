@@ -7,26 +7,40 @@ export default function StylistSchedule({ onBack }) {
   const [myBookings, setMyBookings] = useState([]);
   const [stylistProfile, setStylistProfile] = useState(null);
   const [loading, setLoading] = useState(true);
-
-  const authHeader = { Authorization: `Bearer ${session?.access_token}` };
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     async function fetchMySchedule() {
-      if (!user?.email || !session?.access_token) return;
+      if (!user?.email || !session?.access_token) {
+        setLoading(false);
+        return;
+      }
+
+      const authHeader = { Authorization: `Bearer ${session.access_token}` };
+
       try {
         const stylistRes = await fetch(`${API_URL}/api/stylists`);
         const stylists = await stylistRes.json();
         const me = stylists.find(s => s.email === user.email);
 
-        if (!me) { setLoading(false); return; }
+        if (!me) {
+          setLoading(false);
+          return;
+        }
         setStylistProfile(me);
 
         const bookingRes = await fetch(`${API_URL}/api/bookings/stylist/${me.id}`, { headers: authHeader });
-        const mine = await bookingRes.json();
+        const data = await bookingRes.json();
 
-        setMyBookings(mine);
-      } catch (error) {
-        console.error(error);
+        if (!bookingRes.ok) {
+          setError(data.error || 'Failed to load schedule');
+          setMyBookings([]);
+        } else {
+          setMyBookings(Array.isArray(data) ? data : []);
+        }
+      } catch (err) {
+        console.error(err);
+        setError('Something went wrong loading your schedule.');
       } finally {
         setLoading(false);
       }
@@ -39,7 +53,7 @@ export default function StylistSchedule({ onBack }) {
     try {
       const res = await fetch(`${API_URL}/api/bookings/${bookingId}/complete`, {
         method: 'PUT',
-        headers: authHeader,
+        headers: { Authorization: `Bearer ${session?.access_token}` },
       });
       if (res.ok) {
         alert('Job Complete! Points awarded.');
@@ -58,6 +72,7 @@ export default function StylistSchedule({ onBack }) {
 
   if (loading) return <div className="p-10 animate-pulse">Loading...</div>;
   if (!stylistProfile) return <div className="p-10">Access Restricted</div>;
+  if (error) return <div className="p-10 text-red-500">{error}</div>;
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans p-6">
@@ -72,7 +87,7 @@ export default function StylistSchedule({ onBack }) {
 
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
           {myBookings.length === 0 ? (
-            <div className="p-16 text-center text-gray-400">No appointments today.</div>
+            <div className="p-16 text-center text-gray-400">No appointments found.</div>
           ) : (
             <div>
               {myBookings.map((booking) => {
@@ -85,7 +100,7 @@ export default function StylistSchedule({ onBack }) {
                         <p className="text-[10px] text-gray-400 uppercase">{start.toDateString()}</p>
                       </div>
                       <div>
-                        <h3 className="font-bold text-gray-800">{booking.profiles?.full_name || 'Guest'}</h3>
+                        <h3 className="font-bold text-gray-800">{booking.profiles?.full_name || booking.guests?.full_name || 'Guest'}</h3>
                         <p className="text-sm text-gray-500">{booking.services?.name}</p>
                       </div>
                     </div>
