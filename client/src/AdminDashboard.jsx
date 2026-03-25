@@ -15,6 +15,10 @@ export default function AdminDashboard({ onBack }) {
   const [showGuestModal, setShowGuestModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Reviews state
+  const [pendingReviews, setPendingReviews] = useState([]);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
+
   const authHeader = {
     Authorization: `Bearer ${session?.access_token}`,
     'Content-Type': 'application/json',
@@ -27,15 +31,49 @@ export default function AdminDashboard({ onBack }) {
       .catch((err) => console.error('Error fetching services:', err));
   }, [refresh]);
 
+  useEffect(() => {
+    if (activeTab === 'reviews') {
+      fetchPendingReviews();
+    }
+  }, [activeTab]);
+
+  const fetchPendingReviews = async () => {
+    setReviewsLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/reviews/pending`, { headers: authHeader });
+      const data = await res.json();
+      setPendingReviews(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setReviewsLoading(false);
+    }
+  };
+
+  const handleApprove = async (id) => {
+    try {
+      const res = await fetch(`${API_URL}/api/reviews/${id}/approve`, {
+        method: 'PATCH',
+        headers: authHeader,
+      });
+      if (res.ok) {
+        setPendingReviews(prev => prev.filter(r => r.id !== id));
+      } else {
+        alert('Failed to approve review.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Something went wrong.');
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
     const price = parseFloat(formData.price);
     const duration = parseInt(formData.duration);
-
     const url = editingId ? `${API_URL}/api/services/${editingId}` : `${API_URL}/api/services`;
     const method = editingId ? 'PUT' : 'POST';
-
     try {
       await fetch(url, {
         method,
@@ -56,10 +94,7 @@ export default function AdminDashboard({ onBack }) {
   const handleDelete = async (id) => {
     if (!confirm('Delete service?')) return;
     try {
-      await fetch(`${API_URL}/api/services/${id}`, {
-        method: 'DELETE',
-        headers: authHeader,
-      });
+      await fetch(`${API_URL}/api/services/${id}`, { method: 'DELETE', headers: authHeader });
       setRefresh(p => p + 1);
     } catch (err) {
       console.error(err);
@@ -124,6 +159,15 @@ export default function AdminDashboard({ onBack }) {
           className={`pb-2 px-4 text-sm font-bold uppercase tracking-widest transition ${activeTab === 'services' ? 'border-b-2 border-black text-black' : 'text-gray-400 hover:text-gray-600'}`}
         >
           Service Menu
+        </button>
+        <button
+          onClick={() => setActiveTab('reviews')}
+          className={`pb-2 px-4 text-sm font-bold uppercase tracking-widest transition ${activeTab === 'reviews' ? 'border-b-2 border-black text-black' : 'text-gray-400 hover:text-gray-600'}`}
+        >
+          Reviews
+          {pendingReviews.length > 0 && (
+            <span className="ml-2 bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">{pendingReviews.length}</span>
+          )}
         </button>
       </div>
 
@@ -207,6 +251,47 @@ export default function AdminDashboard({ onBack }) {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {activeTab === 'reviews' && (
+        <div className="animate-fade-in">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="font-bold text-lg uppercase tracking-widest">Pending Reviews</h2>
+            <button onClick={fetchPendingReviews} className="text-xs text-gray-400 hover:text-black underline">Refresh</button>
+          </div>
+
+          {reviewsLoading ? (
+            <div className="text-center text-gray-400 animate-pulse py-12">Loading...</div>
+          ) : pendingReviews.length === 0 ? (
+            <div className="bg-white rounded shadow-sm border border-gray-100 p-16 text-center text-gray-400">
+              No pending reviews.
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {pendingReviews.map((review) => (
+                <div key={review.id} className="bg-white rounded shadow-sm border border-gray-100 p-6 flex justify-between items-start">
+                  <div>
+                    <div className="flex items-center gap-3 mb-2">
+                      <span className="font-bold text-gray-800">{review.profiles?.full_name || 'Customer'}</span>
+                      <span className="text-xs text-gray-400">→ {review.stylists?.name}</span>
+                      <span className="text-yellow-500 font-bold">{'★'.repeat(review.rating)}{'☆'.repeat(5 - review.rating)}</span>
+                    </div>
+                    {review.comment && (
+                      <p className="text-sm text-gray-600 max-w-xl">{review.comment}</p>
+                    )}
+                    <p className="text-[10px] text-gray-400 mt-2">{new Date(review.created_at).toLocaleString('en-GB')}</p>
+                  </div>
+                  <button
+                    onClick={() => handleApprove(review.id)}
+                    className="bg-green-600 text-white px-4 py-2 rounded text-xs font-bold uppercase hover:bg-green-700 transition ml-4 shrink-0"
+                  >
+                    Approve
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
