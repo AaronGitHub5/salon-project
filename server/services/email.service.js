@@ -104,6 +104,29 @@ function reviewRequestTemplate({ fullName, serviceName, bookingId }) {
   `;
 }
 
+function reminderTemplate({ fullName, serviceName, stylistName, startTime, window }) {
+  const timing = window === '1h' ? 'in <strong>1 hour</strong>' : '<strong>tomorrow</strong>';
+  return `
+    <div style="font-family:sans-serif;max-width:600px;margin:0 auto;">
+      <h2 style="background:#111;color:#fff;padding:20px;">Hair By Amnesia</h2>
+      <div style="padding:24px;">
+        <p>Hi ${fullName},</p>
+        <p>This is a friendly reminder that you have an appointment ${timing}!</p>
+        <table style="width:100%;border-collapse:collapse;">
+          <tr><td style="padding:8px;border:1px solid #eee;"><strong>Service</strong></td><td style="padding:8px;border:1px solid #eee;">${serviceName}</td></tr>
+          <tr><td style="padding:8px;border:1px solid #eee;"><strong>Stylist</strong></td><td style="padding:8px;border:1px solid #eee;">${stylistName}</td></tr>
+          <tr><td style="padding:8px;border:1px solid #eee;"><strong>Date & Time</strong></td><td style="padding:8px;border:1px solid #eee;">${new Date(startTime).toLocaleString('en-GB')}</td></tr>
+        </table>
+        <p style="margin-top:20px;color:#666;">We look forward to seeing you!</p>
+        <p style="margin-top:16px;font-size:13px;color:#666;">
+          Need to cancel or reschedule?
+          <a href="https://hairbyamnesia.co.uk" style="color:#111;font-weight:bold;">Visit your profile</a>
+        </p>
+      </div>
+    </div>
+  `;
+}
+
 module.exports = {
   initMail,
   sendEmail,
@@ -111,4 +134,5 @@ module.exports = {
   cancellationTemplate,
   rescheduleTemplate,
   reviewRequestTemplate,
+  reminderTemplate,
 };
