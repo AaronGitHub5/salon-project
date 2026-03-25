@@ -2,7 +2,7 @@ const reviewsService = require('../services/reviews.service');
 
 async function submitReview(req, res) {
   try {
-    const customerId = req.user.sub;
+    const customerId = req.user.id;
     const review = await reviewsService.submitReview(customerId, req.body);
     res.status(201).json(review);
   } catch (err) {
