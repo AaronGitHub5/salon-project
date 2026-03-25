@@ -1,4 +1,4 @@
-import { createContext, useState, useEffect, useContext, useRef } from 'react';
+import { createContext, useState, useEffect, useContext } from 'react';
 import { supabase } from './lib/supabase';
 
 const AuthContext = createContext();
@@ -11,128 +11,81 @@ function nukeStorage() {
   });
 }
 
-export function AuthProvider({ children }) {
-  const hasSession = Object.keys(localStorage).some((key) => key.startsWith('sb-'));
+async function fetchRole(userId) {
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', userId)
+      .single();
+    if (error || !data) return 'customer';
+    return data.role || 'customer';
+  } catch {
+    return 'customer';
+  }
+}
 
-  const [loading, setLoading] = useState(false);
+export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [role, setRole] = useState(null);
   const [session, setSession] = useState(null);
-
-  const isSigningIn = useRef(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Auth version check — nuke stale sessions on version bump
     const storedVersion = localStorage.getItem('auth_version');
     if (storedVersion !== AUTH_VERSION) {
       nukeStorage();
       localStorage.setItem('auth_version', AUTH_VERSION);
-      setUser(null);
-      setRole(null);
-      setSession(null);
-    }
-  }, []);
-
-  const fetchRole = async (userId) => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', userId)
-        .single();
-      if (error || !data) return 'customer';
-      return data.role || 'customer';
-    } catch {
-      return 'customer';
-    }
-  };
-
-  useEffect(() => {
-    if (!hasSession) {
-      setLoading(false);
-      return;
     }
 
-    let mounted = true;
-
-    const init = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!mounted) return;
-
-        if (session?.user) {
-          const userRole = await fetchRole(session.user.id);
-          setUser(session.user);
-          setRole(userRole);
-          setSession(session);
-        } else if (hasSession) {
-          nukeStorage();
-          setUser(null);
-          setRole(null);
-          setSession(null);
-        }
-      } catch (err) {
-        nukeStorage();
-      }
-    };
-
-    init();
-
+    
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        if (!mounted || isSigningIn.current) return;
-
-        if (!session) {
+        if (event === 'SIGNED_OUT' || !session) {
           setUser(null);
           setRole(null);
           setSession(null);
+          setLoading(false);
           return;
         }
 
+        // INITIAL_SESSION, SIGNED_IN, TOKEN_REFRESHED  all handled here
         const userRole = await fetchRole(session.user.id);
         setUser(session.user);
         setRole(userRole);
         setSession(session);
+        setLoading(false);
       }
     );
 
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
+    return () => subscription.unsubscribe();
   }, []);
 
+  // signIn just triggers Supabase auth 
   const signIn = async (credentials) => {
-    isSigningIn.current = true;
-    setUser(null);
-    setRole(null);
-    setSession(null);
-
     const { data, error } = await supabase.auth.signInWithPassword(credentials);
-
-    if (data?.user) {
-      const userRole = await fetchRole(data.user.id);
-      setUser(data.user);
-      setRole(userRole);
-      setSession(data.session);
-    }
-
-    isSigningIn.current = false;
     return { data, error };
   };
 
   const signOut = async () => {
-    setUser(null);
-    setRole(null);
-    setSession(null);
     nukeStorage();
     await supabase.auth.signOut().catch(() => {});
+    // onAuthStateChange fires SIGNED_OUT and clears state
   };
 
   if (loading) return null;
 
   return (
     <AuthContext.Provider
-      value={{ user, role, session, signIn, signUp: (d) => supabase.auth.signUp(d), signOut }}
+      value={{
+        user,
+        role,
+        session,
+        signIn,
+        signUp: (d) => supabase.auth.signUp(d),
+        signOut,
+      }}
     >
       {children}
     </AuthContext.Provider>
