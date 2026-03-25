@@ -12,6 +12,7 @@ const stylistsRouter = require('./routes/stylists.routes');
 const availabilityRouter = require('./routes/availability.routes');
 const analyticsRouter = require('./routes/analytics.routes');
 const reviewsRouter = require('./routes/reviews.routes');
+const profilesRouter = require('./routes/profiles.routes');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -34,6 +35,7 @@ app.use('/api/stylists', stylistsRouter);
 app.use('/api/availability', availabilityRouter);
 app.use('/api/analytics', analyticsRouter);
 app.use('/api/reviews', reviewsRouter);
+app.use('/api/profiles', profilesRouter);
 
 initMail();
 
