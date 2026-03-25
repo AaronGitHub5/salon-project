@@ -18,9 +18,11 @@ async function fetchRole(userId) {
       .select('role')
       .eq('id', userId)
       .single();
+    console.log('fetchRole result:', { data, error, userId });
     if (error || !data) return 'customer';
     return data.role || 'customer';
-  } catch {
+  } catch (err) {
+    console.log('fetchRole exception:', err);
     return 'customer';
   }
 }
@@ -39,12 +41,12 @@ export function AuthProvider({ children }) {
       localStorage.setItem('auth_version', AUTH_VERSION);
     }
 
-    // onAuthStateChange is the single source of truth for all auth state.
-    // It fires immediately with the current session on mount (INITIAL_SESSION),
-    // then again on every sign-in, sign-out, and token refresh.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log('AUTH EVENT:', event, session?.user?.email);
+
         if (event === 'SIGNED_OUT' || !session) {
+          console.log('AUTH: clearing state');
           setUser(null);
           setRole(null);
           setSession(null);
@@ -52,8 +54,8 @@ export function AuthProvider({ children }) {
           return;
         }
 
-        // INITIAL_SESSION, SIGNED_IN, TOKEN_REFRESHED — all handled here
         const userRole = await fetchRole(session.user.id);
+        console.log('ROLE FETCHED:', userRole, 'for', session?.user?.email);
         setUser(session.user);
         setRole(userRole);
         setSession(session);
@@ -70,7 +72,6 @@ export function AuthProvider({ children }) {
     };
   }, []);
 
-  // signIn just triggers Supabase auth — onAuthStateChange handles state
   const signIn = async (credentials) => {
     const { data, error } = await supabase.auth.signInWithPassword(credentials);
     return { data, error };
@@ -79,7 +80,6 @@ export function AuthProvider({ children }) {
   const signOut = async () => {
     nukeStorage();
     await supabase.auth.signOut().catch(() => {});
-    // onAuthStateChange fires SIGNED_OUT and clears state
   };
 
   if (loading) return null;
