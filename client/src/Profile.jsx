@@ -54,6 +54,11 @@ export default function Profile({ onBack }) {
   const [loadingVouchers, setLoadingVouchers] = useState(false);
 
   const token = session?.access_token;
+  const fetchPoints = () => {
+    if (!user?.id) return;
+    supabase.from('profiles').select('loyalty_points').eq('id', user.id).single()
+      .then(({ data }) => { if (data) setPoints(data.loyalty_points || 0); });
+  };
   const authHeader = { Authorization: `Bearer ${token}` };
 
   useEffect(() => {
@@ -63,8 +68,7 @@ export default function Profile({ onBack }) {
         .then(data => { setAppointments(Array.isArray(data) ? data : []); setLoadingAppts(false); })
         .catch(err => { console.error(err); setLoadingAppts(false); });
 
-      supabase.from('profiles').select('loyalty_points').eq('id', user.id).single()
-        .then(({ data }) => { if (data) setPoints(data.loyalty_points || 0); });
+      fetchPoints();
 
       // Fetch vouchers
       setLoadingVouchers(true);
@@ -74,6 +78,18 @@ export default function Profile({ onBack }) {
         .catch(() => setLoadingVouchers(false));
     }
   }, [user]);
+
+  // Re-fetch points and vouchers when loyalty tab is opened
+  useEffect(() => {
+    if (activeTab === 'loyalty' && user?.id) {
+      fetchPoints();
+      setLoadingVouchers(true);
+      fetch(`${API_URL}/api/profiles/vouchers`, { headers: authHeader })
+        .then(res => res.json())
+        .then(data => { setVouchers(Array.isArray(data) ? data : []); setLoadingVouchers(false); })
+        .catch(() => setLoadingVouchers(false));
+    }
+  }, [activeTab]);
 
   const handleCancel = async (bookingId) => {
     if (!confirm('Cancel this appointment?')) return;
