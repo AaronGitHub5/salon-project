@@ -3,14 +3,16 @@ import { useAuth } from './AuthContext';
 import API_URL from './config';
 
 export default function StylistSchedule({ onBack }) {
-  const { user } = useAuth(); 
+  const { user, session } = useAuth();
   const [myBookings, setMyBookings] = useState([]);
   const [stylistProfile, setStylistProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const authHeader = { Authorization: `Bearer ${session?.access_token}` };
+
   useEffect(() => {
     async function fetchMySchedule() {
-      if (!user?.email) return;
+      if (!user?.email || !session?.access_token) return;
       try {
         const stylistRes = await fetch(`${API_URL}/api/stylists`);
         const stylists = await stylistRes.json();
@@ -19,32 +21,42 @@ export default function StylistSchedule({ onBack }) {
         if (!me) { setLoading(false); return; }
         setStylistProfile(me);
 
-        const bookingRes = await fetch(`${API_URL}/api/bookings`);
+        const bookingRes = await fetch(`${API_URL}/api/bookings`, { headers: authHeader });
         const allBookings = await bookingRes.json();
         const mine = allBookings
           .filter(b => b.stylist_id === me.id && b.status !== 'cancelled')
           .sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
 
         setMyBookings(mine);
-      } catch (error) { console.error(error); } 
-      finally { setLoading(false); }
+      } catch (error) {
+        console.error(error);
+      } finally {
+        setLoading(false);
+      }
     }
     fetchMySchedule();
-  }, [user]);
+  }, [user, session]);
 
   const handleComplete = async (bookingId) => {
-    if(!confirm("Mark job as complete? Points will be added to customer.")) return;
+    if (!confirm('Mark job as complete? Points will be added to customer.')) return;
     try {
-        const res = await fetch(`${API_URL}/api/bookings/${bookingId}/complete`, { method: 'PUT' });
-        if(res.ok) {
-            alert("Job Complete! Points awarded.");
-            
-            
-            setMyBookings(prev => prev.map(b => 
-              b.id === bookingId ? { ...b, status: 'completed' } : b
-            ));
-        }
-    } catch(err) { console.error(err); }
+      const res = await fetch(`${API_URL}/api/bookings/${bookingId}/complete`, {
+        method: 'PUT',
+        headers: authHeader,
+      });
+      if (res.ok) {
+        alert('Job Complete! Points awarded.');
+        setMyBookings(prev =>
+          prev.map(b => b.id === bookingId ? { ...b, status: 'completed' } : b)
+        );
+      } else {
+        const data = await res.json();
+        alert(`Error: ${data.error || 'Could not complete booking'}`);
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Something went wrong. Please try again.');
+    }
   };
 
   if (loading) return <div className="p-10 animate-pulse">Loading...</div>;
@@ -62,31 +74,36 @@ export default function StylistSchedule({ onBack }) {
         </div>
 
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-          {myBookings.length === 0 ? <div className="p-16 text-center text-gray-400">No appointments today.</div> : (
+          {myBookings.length === 0 ? (
+            <div className="p-16 text-center text-gray-400">No appointments today.</div>
+          ) : (
             <div>
               {myBookings.map((booking) => {
                 const start = new Date(booking.start_time);
                 return (
                   <div key={booking.id} className="border-b last:border-0 border-gray-100 p-6 flex items-center justify-between hover:bg-gray-50 transition">
                     <div className="flex items-center gap-6">
-                        <div className="text-right w-24">
-                            <p className="text-xl font-bold font-mono">{start.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</p>
-                            <p className="text-[10px] text-gray-400 uppercase">{start.toDateString()}</p>
-                        </div>
-                        <div>
-                            <h3 className="font-bold text-gray-800">{booking.profiles?.full_name || "Guest"}</h3>
-                            <p className="text-sm text-gray-500">{booking.services?.name}</p>
-                        </div>
+                      <div className="text-right w-24">
+                        <p className="text-xl font-bold font-mono">{start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                        <p className="text-[10px] text-gray-400 uppercase">{start.toDateString()}</p>
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-gray-800">{booking.profiles?.full_name || 'Guest'}</h3>
+                        <p className="text-sm text-gray-500">{booking.services?.name}</p>
+                      </div>
                     </div>
-                    
+
                     <div>
-                        {booking.status === 'completed' ? (
-                            <span className="text-green-600 border border-green-200 bg-green-50 text-xs font-bold px-3 py-1 rounded uppercase">Completed</span>
-                        ) : (
-                            <button onClick={() => handleComplete(booking.id)} className="bg-black text-white text-xs font-bold uppercase px-4 py-2 rounded hover:bg-gray-800 transition shadow-sm">
-                                Complete Job
-                            </button>
-                        )}
+                      {booking.status === 'completed' ? (
+                        <span className="text-green-600 border border-green-200 bg-green-50 text-xs font-bold px-3 py-1 rounded uppercase">Completed</span>
+                      ) : (
+                        <button
+                          onClick={() => handleComplete(booking.id)}
+                          className="bg-black text-white text-xs font-bold uppercase px-4 py-2 rounded hover:bg-gray-800 transition shadow-sm"
+                        >
+                          Complete Job
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
