@@ -6,6 +6,7 @@ import BookingModal from './BookingModal';
 import AdminDashboard from './AdminDashboard';
 import Profile from './Profile';
 import StylistSchedule from './StylistSchedule';
+import ReviewModal from './ReviewModal';
 import API_URL from './config';
 
 function App() {
@@ -14,6 +15,18 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [selectedService, setSelectedService] = useState(null);
   const [view, setView] = useState('customer');
+  const [reviewBookingId, setReviewBookingId] = useState(null);
+
+  // Detect ?review=<bookingId> in URL on load
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const bookingId = params.get('review');
+    if (bookingId) {
+      setReviewBookingId(bookingId);
+      // Clean the URL without reloading
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
 
   useEffect(() => {
     if (user && view === 'customer') {
@@ -60,6 +73,7 @@ function App() {
     window.location.reload();
   };
 
+  // If not logged in, show login — but preserve reviewBookingId for after auth
   if (!user) return <Login />;
 
   if (view === 'admin') return <AdminDashboard onBack={() => setView('customer')} />;
@@ -117,7 +131,10 @@ function App() {
               Logout
             </button>
 
-            <button className="bg-black text-white text-xs font-bold uppercase tracking-widest px-6 py-3 hover:bg-gray-800 transition">
+            <button
+              onClick={() => setSelectedService(services[0] || null)}
+              className="bg-black text-white text-xs font-bold uppercase tracking-widest px-6 py-3 hover:bg-gray-800 transition"
+            >
               Book Online
             </button>
           </div>
@@ -172,11 +189,21 @@ function App() {
         )}
       </main>
 
+      {/* Booking Modal */}
       {selectedService && (
         <BookingModal
           service={selectedService}
           onClose={() => setSelectedService(null)}
           onConfirm={handleBooking}
+        />
+      )}
+
+      {/* Review Modal — opens when ?review=<bookingId> detected in URL */}
+      {reviewBookingId && user && (
+        <ReviewModal
+          bookingId={reviewBookingId}
+          token={session?.access_token}
+          onClose={() => setReviewBookingId(null)}
         />
       )}
     </div>
