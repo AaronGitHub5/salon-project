@@ -39,7 +39,9 @@ export function AuthProvider({ children }) {
       localStorage.setItem('auth_version', AUTH_VERSION);
     }
 
-    
+    // onAuthStateChange is the single source of truth for all auth state.
+    // It fires immediately with the current session on mount (INITIAL_SESSION),
+    // then again on every sign-in, sign-out, and token refresh.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (event === 'SIGNED_OUT' || !session) {
@@ -50,7 +52,7 @@ export function AuthProvider({ children }) {
           return;
         }
 
-        // INITIAL_SESSION, SIGNED_IN, TOKEN_REFRESHED  all handled here
+        // INITIAL_SESSION, SIGNED_IN, TOKEN_REFRESHED — all handled here
         const userRole = await fetchRole(session.user.id);
         setUser(session.user);
         setRole(userRole);
@@ -59,10 +61,16 @@ export function AuthProvider({ children }) {
       }
     );
 
-    return () => subscription.unsubscribe();
+    // Fallback: clear loading if onAuthStateChange never fires (no session, cold load)
+    const fallback = setTimeout(() => setLoading(false), 500);
+
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(fallback);
+    };
   }, []);
 
-  // signIn just triggers Supabase auth 
+  // signIn just triggers Supabase auth — onAuthStateChange handles state
   const signIn = async (credentials) => {
     const { data, error } = await supabase.auth.signInWithPassword(credentials);
     return { data, error };
