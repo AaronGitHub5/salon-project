@@ -28,15 +28,14 @@ export default function Login() {
     }
   }, []);
 
-  // Redirect already-authenticated users — forward ?review= if present
+  // Redirect once both user and role are resolved
   useEffect(() => {
-    if (user && role) {
-      const appPath = reviewParam ? `/app?review=${reviewParam}` : '/app';
-      if (role === 'admin') navigate('/admin', { replace: true });
-      else if (role === 'stylist') navigate('/stylist', { replace: true });
-      else navigate(appPath, { replace: true });
-    }
-  }, [user, role, navigate, reviewParam]);
+    if (!user || !role) return;
+    const appPath = reviewParam ? `/app?review=${reviewParam}` : '/app';
+    if (role === 'admin') navigate('/admin', { replace: true });
+    else if (role === 'stylist') navigate('/stylist', { replace: true });
+    else navigate(appPath, { replace: true });
+  }, [user, role]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSubmit = async (e) => {
     e.preventDefault();
