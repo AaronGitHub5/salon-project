@@ -11,6 +11,14 @@ function nukeStorage() {
   });
 }
 
+// Run version check synchronously before anything else
+// so stale sessions are cleared before onAuthStateChange fires
+const storedVersion = localStorage.getItem('auth_version');
+if (storedVersion !== AUTH_VERSION) {
+  nukeStorage();
+  localStorage.setItem('auth_version', AUTH_VERSION);
+}
+
 async function fetchRole(userId) {
   try {
     const { data, error } = await supabase
@@ -18,11 +26,9 @@ async function fetchRole(userId) {
       .select('role')
       .eq('id', userId)
       .single();
-    console.log('fetchRole result:', { data, error, userId });
     if (error || !data) return 'customer';
     return data.role || 'customer';
-  } catch (err) {
-    console.log('fetchRole exception:', err);
+  } catch {
     return 'customer';
   }
 }
@@ -34,19 +40,9 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Auth version check — nuke stale sessions on version bump
-    const storedVersion = localStorage.getItem('auth_version');
-    if (storedVersion !== AUTH_VERSION) {
-      nukeStorage();
-      localStorage.setItem('auth_version', AUTH_VERSION);
-    }
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('AUTH EVENT:', event, session?.user?.email);
-
         if (event === 'SIGNED_OUT' || !session) {
-          console.log('AUTH: clearing state');
           setUser(null);
           setRole(null);
           setSession(null);
@@ -55,7 +51,6 @@ export function AuthProvider({ children }) {
         }
 
         const userRole = await fetchRole(session.user.id);
-        console.log('ROLE FETCHED:', userRole, 'for', session?.user?.email);
         setUser(session.user);
         setRole(userRole);
         setSession(session);
@@ -63,7 +58,7 @@ export function AuthProvider({ children }) {
       }
     );
 
-    // Fallback: clear loading if onAuthStateChange never fires (no session, cold load)
+    // Fallback: clear loading if onAuthStateChange never fires
     const fallback = setTimeout(() => setLoading(false), 500);
 
     return () => {
