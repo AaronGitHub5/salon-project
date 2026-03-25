@@ -24,7 +24,7 @@ export default function StylistSchedule({ onBack }) {
         const bookingRes = await fetch(`${API_URL}/api/bookings`, { headers: authHeader });
         const allBookings = await bookingRes.json();
         const mine = allBookings
-          .filter(b => b.stylist_id === me.id && b.status !== 'cancelled')
+          .filter(b => b.stylist_id == me.id && b.status !== 'cancelled')
           .sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
 
         setMyBookings(mine);
