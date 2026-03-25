@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import API_URL from './config';
 
-export default function StylistSchedule({ onBack }) {
+export default function StylistSchedule() {
   const { user, session } = useAuth();
+  const navigate = useNavigate();
+
   const [myBookings, setMyBookings] = useState([]);
   const [stylistProfile, setStylistProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -82,7 +85,7 @@ export default function StylistSchedule({ onBack }) {
             <h1 className="text-3xl font-light uppercase tracking-widest text-gray-800">My Schedule</h1>
             <p className="text-gray-500 mt-2">Stylist: <strong>{stylistProfile.name}</strong></p>
           </div>
-          <button onClick={onBack} className="text-xs font-bold uppercase underline">Exit</button>
+          <button onClick={() => navigate('/app')} className="text-xs font-bold uppercase underline">Exit</button>
         </div>
 
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">

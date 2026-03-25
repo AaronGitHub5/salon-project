@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import { supabase } from './lib/supabase';
 import API_URL from './config';
@@ -15,9 +16,7 @@ function LoyaltyRing({ points, goal }) {
 
   return (
     <svg width="140" height="140" viewBox="0 0 140 140">
-      {/* Background ring */}
       <circle cx="70" cy="70" r={radius} fill="none" stroke="#e5e7eb" strokeWidth="10" />
-      {/* Progress ring */}
       <circle
         cx="70" cy="70" r={radius} fill="none"
         stroke="#111" strokeWidth="10"
@@ -27,7 +26,6 @@ function LoyaltyRing({ points, goal }) {
         transform="rotate(-90 70 70)"
         style={{ transition: 'stroke-dashoffset 0.6s ease' }}
       />
-      {/* Points label */}
       <text x="70" y="65" textAnchor="middle" className="font-bold" style={{ fontSize: '22px', fontWeight: '700', fill: '#111' }}>
         {points}
       </text>
@@ -38,8 +36,9 @@ function LoyaltyRing({ points, goal }) {
   );
 }
 
-export default function Profile({ onBack }) {
+export default function Profile() {
   const { user, role, session } = useAuth();
+  const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState('appointments');
   const [appointments, setAppointments] = useState([]);
@@ -54,12 +53,13 @@ export default function Profile({ onBack }) {
   const [loadingVouchers, setLoadingVouchers] = useState(false);
 
   const token = session?.access_token;
+  const authHeader = { Authorization: `Bearer ${token}` };
+
   const fetchPoints = () => {
     if (!user?.id) return;
     supabase.from('profiles').select('loyalty_points').eq('id', user.id).single()
       .then(({ data }) => { if (data) setPoints(data.loyalty_points || 0); });
   };
-  const authHeader = { Authorization: `Bearer ${token}` };
 
   useEffect(() => {
     if (user?.id) {
@@ -70,7 +70,6 @@ export default function Profile({ onBack }) {
 
       fetchPoints();
 
-      // Fetch vouchers
       setLoadingVouchers(true);
       fetch(`${API_URL}/api/profiles/vouchers`, { headers: authHeader })
         .then(res => res.json())
@@ -79,7 +78,6 @@ export default function Profile({ onBack }) {
     }
   }, [user]);
 
-  // Re-fetch points and vouchers when loyalty tab is opened
   useEffect(() => {
     if (activeTab === 'loyalty' && user?.id) {
       fetchPoints();
@@ -187,7 +185,7 @@ export default function Profile({ onBack }) {
             </h1>
             <p className="text-sm text-gray-400 mt-1">{user?.email}</p>
           </div>
-          <button onClick={onBack} className="text-sm underline hover:text-red-500">← Back</button>
+          <button onClick={() => navigate('/app')} className="text-sm underline hover:text-red-500">← Back</button>
         </div>
 
         {/* Tabs */}
@@ -261,7 +259,6 @@ export default function Profile({ onBack }) {
                 {visits} of {LOYALTY_GOAL} visits
               </p>
 
-              {/* Milestone checkmarks */}
               <div className="flex gap-3 mt-6">
                 {MILESTONES.map(milestone => (
                   <div
@@ -277,7 +274,6 @@ export default function Profile({ onBack }) {
                 ))}
               </div>
 
-              {/* Voucher code display */}
               {voucherCode && (
                 <div className="mt-6 w-full bg-green-50 border border-green-200 rounded p-4 text-center">
                   <p className="text-xs text-green-600 uppercase tracking-widest font-bold mb-1">Your Voucher Code</p>
@@ -286,7 +282,6 @@ export default function Profile({ onBack }) {
                 </div>
               )}
 
-              {/* Redeem button */}
               <button
                 onClick={handleRedeem}
                 disabled={!canRedeem || redeeming}

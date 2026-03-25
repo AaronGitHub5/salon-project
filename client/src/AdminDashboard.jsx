@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import GuestBookingModal from './GuestBookingModal';
 import AdminAnalytics from './AdminAnalytics';
 import API_URL from './config';
 
-export default function AdminDashboard({ onBack }) {
+export default function AdminDashboard() {
   const { user, session, signOut } = useAuth();
+  const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState('analytics');
   const [services, setServices] = useState([]);
@@ -15,7 +17,6 @@ export default function AdminDashboard({ onBack }) {
   const [showGuestModal, setShowGuestModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Reviews state
   const [pendingReviews, setPendingReviews] = useState([]);
   const [reviewsLoading, setReviewsLoading] = useState(false);
 
@@ -32,9 +33,7 @@ export default function AdminDashboard({ onBack }) {
   }, [refresh]);
 
   useEffect(() => {
-    if (activeTab === 'reviews') {
-      fetchPendingReviews();
-    }
+    if (activeTab === 'reviews') fetchPendingReviews();
   }, [activeTab]);
 
   const fetchPendingReviews = async () => {
@@ -134,6 +133,11 @@ export default function AdminDashboard({ onBack }) {
     setFormData({ name: s.name, price: s.base_price, duration: s.duration_minutes, category: s.category || 'Other' });
   };
 
+  const handleLogout = async () => {
+    await signOut();
+    navigate('/login');
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 font-sans p-8">
       <header className="flex justify-between items-center mb-8 bg-white p-4 shadow-sm rounded-lg border-l-4 border-black">
@@ -142,8 +146,8 @@ export default function AdminDashboard({ onBack }) {
           <p className="text-xs text-gray-500">Logged in as {user?.email}</p>
         </div>
         <div className="flex gap-4">
-          <button onClick={onBack} className="text-sm bg-gray-100 px-4 py-2 rounded hover:bg-gray-200">← Back to Site</button>
-          <button onClick={signOut} className="text-sm bg-red-50 text-red-600 px-4 py-2 rounded font-bold hover:bg-red-100">Logout</button>
+          <button onClick={() => navigate('/app')} className="text-sm bg-gray-100 px-4 py-2 rounded hover:bg-gray-200">← Back to Site</button>
+          <button onClick={handleLogout} className="text-sm bg-red-50 text-red-600 px-4 py-2 rounded font-bold hover:bg-red-100">Logout</button>
         </div>
       </header>
 

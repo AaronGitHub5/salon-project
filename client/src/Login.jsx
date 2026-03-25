@@ -1,13 +1,17 @@
 import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import { supabase } from './lib/supabase';
 
 export default function Login() {
-  const { signIn, signUp } = useAuth();
-  
+  const { signIn, signUp, user, role } = useAuth();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const reviewParam = searchParams.get('review');
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [fullName, setFullName] = useState(''); 
+  const [fullName, setFullName] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
   const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [isResetPassword, setIsResetPassword] = useState(false);
@@ -16,7 +20,7 @@ export default function Login() {
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Detect if user arrived via password reset link
+  // Detect password reset link
   useEffect(() => {
     const hash = window.location.hash;
     if (hash.includes('type=recovery')) {
@@ -24,18 +28,28 @@ export default function Login() {
     }
   }, []);
 
+  // Redirect already-authenticated users — forward ?review= if present
+  useEffect(() => {
+    if (user && role) {
+      const appPath = reviewParam ? `/app?review=${reviewParam}` : '/app';
+      if (role === 'admin') navigate('/admin', { replace: true });
+      else if (role === 'stylist') navigate('/stylist', { replace: true });
+      else navigate(appPath, { replace: true });
+    }
+  }, [user, role, navigate, reviewParam]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setSuccess('');
     setLoading(true);
-    
+
     try {
       if (isSignUp) {
-        const { error } = await signUp({ 
-          email, 
-          password, 
-          options: { data: { full_name: fullName } } 
+        const { error } = await signUp({
+          email,
+          password,
+          options: { data: { full_name: fullName } },
         });
         if (error) {
           if (error.message.includes('User already registered')) {
@@ -45,7 +59,7 @@ export default function Login() {
           }
           return;
         }
-        alert("Account created! Please check your email to verify your account before logging in.");
+        alert('Account created! Please check your email to verify your account before logging in.');
       } else {
         const { error } = await signIn({ email, password });
         if (error) {
@@ -56,6 +70,7 @@ export default function Login() {
           }
           return;
         }
+        // Navigation handled by the useEffect above once role is set
       }
     } catch (err) {
       setError(err.message);
@@ -163,7 +178,7 @@ export default function Login() {
         <h2 className="text-2xl font-light uppercase tracking-widest mb-6 text-center">
           {isSignUp ? 'Join Us' : 'Sign In'}
         </h2>
-        
+
         {error && <p className="bg-red-50 text-red-600 p-3 text-xs mb-4">{error}</p>}
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -191,7 +206,7 @@ export default function Login() {
             required
           />
           <button disabled={loading} className="bg-black text-white p-3 text-xs font-bold uppercase tracking-widest hover:bg-gray-800 transition">
-            {loading ? 'Processing...' : (isSignUp ? 'Create Account' : 'Login')}
+            {loading ? 'Processing...' : isSignUp ? 'Create Account' : 'Login'}
           </button>
         </form>
 
@@ -204,7 +219,7 @@ export default function Login() {
         )}
 
         <p className="text-center mt-4 text-xs text-gray-400">
-          {isSignUp ? 'Already have an account?' : "New client?"}{' '}
+          {isSignUp ? 'Already have an account?' : 'New client?'}{' '}
           <button onClick={() => setIsSignUp(!isSignUp)} className="text-black underline font-bold">
             {isSignUp ? 'Login' : 'Sign Up'}
           </button>
