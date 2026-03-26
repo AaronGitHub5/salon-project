@@ -38,36 +38,32 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [isRecoveryMode, setIsRecoveryMode] = useState(false);
   const recoveryRef = useRef(false);
-  const fetchingRoleRef = useRef(false);
+  // Track last auth event so the role effect can distinguish fresh login vs browser reopen
+  const lastEventRef = useRef(null);
 
+  // 1) Auth listener — synchronous only, no async work here.
+  //    Sets user/session state; role is fetched in a separate effect.
   useEffect(() => {
-    let ignore = false;
-    let fallback;
+    let fallbackTimer;
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (ignore) return;
+      (event, session) => {
+        lastEventRef.current = event;
 
-        // PASSWORD_RECOVERY: set recovery mode flag, keep session for updateUser()
-        // but do NOT set role — prevents redirect to dashboard.
         if (event === 'PASSWORD_RECOVERY') {
-          clearTimeout(fallback);
+          clearTimeout(fallbackTimer);
           recoveryRef.current = true;
           setIsRecoveryMode(true);
           setSession(session);
           setUser(session.user);
           setLoading(false);
-          // Clear the recovery hash now that Supabase has processed it.
-          // Leaving it causes Supabase to re-process the token on subsequent
-          // auth calls, triggering "signal is aborted without reason".
           window.history.replaceState(null, '', window.location.pathname + window.location.search);
           return;
         }
 
         if (event === 'SIGNED_OUT' || !session) {
-          clearTimeout(fallback);
+          clearTimeout(fallbackTimer);
           recoveryRef.current = false;
-          fetchingRoleRef.current = false;
           setUser(null);
           setRole(null);
           setSession(null);
@@ -76,61 +72,64 @@ export function AuthProvider({ children }) {
           return;
         }
 
-        // SIGNED_IN fires after PASSWORD_RECOVERY — suppress it so the
-        // recovery form stays visible and does not redirect to dashboard.
-        // Use ref instead of state to avoid stale closure.
+        // SIGNED_IN fires after PASSWORD_RECOVERY — suppress it
         if (recoveryRef.current) {
-          clearTimeout(fallback);
+          clearTimeout(fallbackTimer);
           setLoading(false);
           return;
         }
 
-        setLoading(true);
-        setRole(null);
+        clearTimeout(fallbackTimer);
         setUser(session.user);
         setSession(session);
-
-        fetchingRoleRef.current = true;
-        const userRole = await fetchRole(session.user.id);
-        fetchingRoleRef.current = false;
-        clearTimeout(fallback);
-        if (ignore) return;
-
-        // Admin sessions expire when the browser closes.
-        // sessionStorage is cleared on browser close, so if the flag is missing
-        // but a session exists, the browser was reopened — force re-login.
-        if (userRole === 'admin') {
-          if (event !== 'SIGNED_IN' && !sessionStorage.getItem('admin_session_active')) {
-            // Browser was reopened (INITIAL_SESSION/TOKEN_REFRESHED) with no
-            // sessionStorage flag — force re-login.
-            ignore = true;
-            nukeStorage();
-            window.location.href = '/login';
-            return;
-          }
-          sessionStorage.setItem('admin_session_active', '1');
-        } else {
-          // Clean up flag if a non-admin signs in
-          sessionStorage.removeItem('admin_session_active');
-        }
-
-        setRole(userRole);
-        setLoading(false);
+        setRole(null);       // Clear role — will be fetched by the role effect
+        setLoading(true);    // Show spinner until role is resolved
       }
     );
 
-    // Fallback: clear loading if auth never resolves.
-    // Only fires if we're NOT actively fetching a role (prevents wrong role assignment).
-    fallback = setTimeout(() => {
-      if (!ignore && !fetchingRoleRef.current) setLoading(false);
-    }, 3000);
+    // Safety net: if onAuthStateChange never fires, stop the spinner
+    fallbackTimer = setTimeout(() => setLoading(false), 3000);
 
     return () => {
-      ignore = true;
       subscription.unsubscribe();
-      clearTimeout(fallback);
+      clearTimeout(fallbackTimer);
     };
   }, []);
+
+  // 2) Role fetch — runs whenever user.id changes.
+  //    Automatically cancels the previous fetch if the user changes mid-flight.
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+
+    fetchRole(user.id).then((userRole) => {
+      if (cancelled) return;
+
+      // Admin sessions expire when the browser closes.
+      // sessionStorage is cleared on close, so if the flag is missing
+      // and this isn't a fresh login, force re-login.
+      if (
+        userRole === 'admin' &&
+        lastEventRef.current !== 'SIGNED_IN' &&
+        !sessionStorage.getItem('admin_session_active')
+      ) {
+        nukeStorage();
+        window.location.href = '/login';
+        return;
+      }
+
+      if (userRole === 'admin') {
+        sessionStorage.setItem('admin_session_active', '1');
+      } else {
+        sessionStorage.removeItem('admin_session_active');
+      }
+
+      setRole(userRole);
+      setLoading(false);
+    });
+
+    return () => { cancelled = true; };
+  }, [user?.id]);
 
   const signIn = async (credentials) => {
     const { data, error } = await supabase.auth.signInWithPassword(credentials);
