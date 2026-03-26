@@ -36,12 +36,15 @@ export function AuthProvider({ children }) {
   const [role, setRole] = useState(null);
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isRecoveryMode, setIsRecoveryMode] = useState(false);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        // PASSWORD_RECOVERY: keep the session alive so updateUser() works
+        // PASSWORD_RECOVERY: set recovery mode flag, keep session for updateUser()
+        // but do NOT set role — prevents redirect to dashboard.
         if (event === 'PASSWORD_RECOVERY') {
+          setIsRecoveryMode(true);
           setSession(session);
           setUser(session.user);
           setLoading(false);
@@ -52,6 +55,14 @@ export function AuthProvider({ children }) {
           setUser(null);
           setRole(null);
           setSession(null);
+          setIsRecoveryMode(false);
+          setLoading(false);
+          return;
+        }
+
+        // SIGNED_IN fires after PASSWORD_RECOVERY — suppress it so the
+        // recovery form stays visible and does not redirect to dashboard.
+        if (isRecoveryMode) {
           setLoading(false);
           return;
         }
@@ -92,6 +103,8 @@ export function AuthProvider({ children }) {
         user,
         role,
         session,
+        isRecoveryMode,
+        clearRecoveryMode: () => setIsRecoveryMode(false),
         signIn,
         signUp: (d) => supabase.auth.signUp(d),
         signOut,

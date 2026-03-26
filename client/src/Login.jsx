@@ -4,7 +4,7 @@ import { useAuth } from './AuthContext';
 import { supabase } from './lib/supabase';
 
 export default function Login() {
-  const { signIn, signUp, user, role } = useAuth();
+  const { signIn, signUp, user, role, clearRecoveryMode } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const reviewParam = searchParams.get('review');
@@ -39,7 +39,7 @@ export default function Login() {
     if (role === 'admin') navigate('/admin', { replace: true });
     else if (role === 'stylist') navigate('/stylist', { replace: true });
     else navigate(appPath, { replace: true });
-  }, [user, role]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user, role]); 
 
   const handleToggleMode = () => {
     setIsSignUp(v => !v);
@@ -138,6 +138,7 @@ export default function Login() {
       const { error } = await supabase.auth.updateUser({ password: newPassword });
       if (error) throw error;
       setSuccess('Password updated successfully!');
+      clearRecoveryMode();
       setTimeout(() => {
         setIsResetPassword(false);
         window.location.hash = '';
