@@ -191,35 +191,39 @@ export default function Profile() {
     finally { setSavingInfo(false); }
   };
 
-  // Change email — re-authenticate then update via Supabase auth
+  // Change email — via server endpoint
   const handleChangeEmail = async (e) => {
     e.preventDefault();
     if (!newEmail || !emailPassword) return;
     setSavingEmail(true); setEmailFeedback(null);
     try {
-      // Re-authenticate first
-      const { error: signInError } = await supabase.auth.signInWithPassword({ email: user.email, password: emailPassword });
-      if (signInError) { setEmailFeedback({ type: 'error', msg: 'Current password is incorrect.' }); return; }
-      // Update email
-      const { error } = await supabase.auth.updateUser({ email: newEmail });
-      if (error) setEmailFeedback({ type: 'error', msg: error.message });
-      else { setEmailFeedback({ type: 'success', msg: 'Confirmation sent to new email address.' }); setNewEmail(''); setEmailPassword(''); }
+      const res = await fetch(`${API_URL}/api/auth/change-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
+        body: JSON.stringify({ newEmail, currentPassword: emailPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setEmailFeedback({ type: 'error', msg: data.error }); return; }
+      setEmailFeedback({ type: 'success', msg: 'Email updated successfully.' }); setNewEmail(''); setEmailPassword('');
     } catch { setEmailFeedback({ type: 'error', msg: 'Something went wrong.' }); }
     finally { setSavingEmail(false); }
   };
 
-  // Change password — re-authenticate then update
+  // Change password — via server endpoint
   const handleChangePassword = async (e) => {
     e.preventDefault();
     if (newPassword !== confirmPassword) { setPwFeedback({ type: 'error', msg: 'New passwords do not match.' }); return; }
     if (newPassword.length < 6) { setPwFeedback({ type: 'error', msg: 'Password must be at least 6 characters.' }); return; }
     setSavingPw(true); setPwFeedback(null);
     try {
-      const { error: signInError } = await supabase.auth.signInWithPassword({ email: user.email, password: currentPassword });
-      if (signInError) { setPwFeedback({ type: 'error', msg: 'Current password is incorrect.' }); return; }
-      const { error } = await supabase.auth.updateUser({ password: newPassword });
-      if (error) setPwFeedback({ type: 'error', msg: error.message });
-      else { setPwFeedback({ type: 'success', msg: 'Password updated successfully.' }); setCurrentPassword(''); setNewPassword(''); setConfirmPassword(''); }
+      const res = await fetch(`${API_URL}/api/auth/change-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setPwFeedback({ type: 'error', msg: data.error }); return; }
+      setPwFeedback({ type: 'success', msg: 'Password updated successfully.' }); setCurrentPassword(''); setNewPassword(''); setConfirmPassword('');
     } catch { setPwFeedback({ type: 'error', msg: 'Something went wrong.' }); }
     finally { setSavingPw(false); }
   };
