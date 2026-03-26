@@ -1,4 +1,4 @@
-import { createContext, useState, useEffect, useContext } from 'react';
+import { createContext, useState, useEffect, useContext, useRef } from 'react';
 import { supabase } from './lib/supabase';
 
 const AuthContext = createContext();
@@ -37,6 +37,7 @@ export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isRecoveryMode, setIsRecoveryMode] = useState(false);
+  const recoveryRef = useRef(false); // ref so onAuthStateChange closure always reads current value
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -44,6 +45,7 @@ export function AuthProvider({ children }) {
         // PASSWORD_RECOVERY: set recovery mode flag, keep session for updateUser()
         // but do NOT set role — prevents redirect to dashboard.
         if (event === 'PASSWORD_RECOVERY') {
+          recoveryRef.current = true;
           setIsRecoveryMode(true);
           setSession(session);
           setUser(session.user);
@@ -52,6 +54,7 @@ export function AuthProvider({ children }) {
         }
 
         if (event === 'SIGNED_OUT' || !session) {
+          recoveryRef.current = false;
           setUser(null);
           setRole(null);
           setSession(null);
@@ -62,7 +65,8 @@ export function AuthProvider({ children }) {
 
         // SIGNED_IN fires after PASSWORD_RECOVERY — suppress it so the
         // recovery form stays visible and does not redirect to dashboard.
-        if (isRecoveryMode) {
+        // Use ref instead of state to avoid stale closure.
+        if (recoveryRef.current) {
           setLoading(false);
           return;
         }
@@ -104,7 +108,7 @@ export function AuthProvider({ children }) {
         role,
         session,
         isRecoveryMode,
-        clearRecoveryMode: () => setIsRecoveryMode(false),
+        clearRecoveryMode: () => { recoveryRef.current = false; setIsRecoveryMode(false); },
         signIn,
         signUp: (d) => supabase.auth.signUp(d),
         signOut,

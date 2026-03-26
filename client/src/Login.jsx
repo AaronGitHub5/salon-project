@@ -39,7 +39,7 @@ export default function Login() {
     if (role === 'admin') navigate('/admin', { replace: true });
     else if (role === 'stylist') navigate('/stylist', { replace: true });
     else navigate(appPath, { replace: true });
-  }, [user, role]); 
+  }, [user, role]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleToggleMode = () => {
     setIsSignUp(v => !v);
@@ -123,6 +123,7 @@ export default function Login() {
   };
 
   const handleResetPassword = async (e) => {
+    e.preventDefault();
     if (newPassword !== confirmNewPassword) {
       setError('Passwords do not match.');
       return;
@@ -131,7 +132,6 @@ export default function Login() {
       setError('Password must be at least 6 characters.');
       return;
     }
-    e.preventDefault();
     setError('');
     setLoading(true);
     try {
