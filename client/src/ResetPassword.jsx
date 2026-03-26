@@ -1,30 +1,28 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import { useAuth } from './AuthContext';
 import API_URL from './config';
 
 export default function ResetPassword() {
-  const { clearRecoveryMode } = useAuth();
+  const { session, isRecoveryMode, clearRecoveryMode } = useAuth();
 
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
-  const [invalidLink, setInvalidLink] = useState(false);
 
-  const recoveryAccessToken = useRef(null);
-
-  useEffect(() => {
-    const hash = window.location.hash;
-    if (hash.includes('type=recovery')) {
-      const params = new URLSearchParams(hash.substring(1));
-      recoveryAccessToken.current = params.get('access_token');
-      // Clear the hash so Supabase doesn't re-process it
-      window.history.replaceState(null, '', window.location.pathname + window.location.search);
-    } else {
-      setInvalidLink(true);
-    }
-  }, []);
+  // AuthContext handles the recovery hash and sets isRecoveryMode + session
+  if (!isRecoveryMode || !session?.access_token) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 font-sans">
+        <div className="bg-white p-8 rounded shadow-lg w-96 border border-gray-100 text-center">
+          <h2 className="text-2xl font-light uppercase tracking-widest mb-4">Invalid Link</h2>
+          <p className="text-sm text-gray-500 mb-6">This password reset link is invalid or has expired. Please request a new one.</p>
+          <a href="/login" className="text-black underline text-sm font-bold">Back to Login</a>
+        </div>
+      </div>
+    );
+  }
 
   const handleResetPassword = async (e) => {
     e.preventDefault();
@@ -39,15 +37,11 @@ export default function ResetPassword() {
     setError('');
     setLoading(true);
     try {
-      const token = recoveryAccessToken.current;
-      if (!token) {
-        throw new Error('Session expired. Please request a new password reset link.');
-      }
       const res = await fetch(`${API_URL}/api/auth/reset-password`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          'Authorization': `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({ password: newPassword }),
       });
@@ -64,18 +58,6 @@ export default function ResetPassword() {
       setLoading(false);
     }
   };
-
-  if (invalidLink) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 font-sans">
-        <div className="bg-white p-8 rounded shadow-lg w-96 border border-gray-100 text-center">
-          <h2 className="text-2xl font-light uppercase tracking-widest mb-4">Invalid Link</h2>
-          <p className="text-sm text-gray-500 mb-6">This password reset link is invalid or has expired. Please request a new one.</p>
-          <a href="/login" className="text-black underline text-sm font-bold">Back to Login</a>
-        </div>
-      </div>
-    );
-  }
 
   const resetMismatch = confirmNewPassword && confirmNewPassword !== newPassword;
 
