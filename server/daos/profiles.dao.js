@@ -3,7 +3,7 @@ const supabase = require('../supabaseClient');
 async function getProfileById(id) {
   const { data, error } = await supabase
     .from('profiles')
-    .select('email, full_name, loyalty_points')
+    .select('email, full_name, phone_number, loyalty_points')
     .eq('id', id)
     .single();
   if (error) throw error;
@@ -78,9 +78,25 @@ async function markVoucherUsed(voucherId) {
   return data;
 }
 
+async function updateProfile(id, { full_name, phone_number }) {
+  const updates = {};
+  if (full_name !== undefined) updates.full_name = full_name;
+  if (phone_number !== undefined) updates.phone_number = phone_number;
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .update(updates)
+    .eq('id', id)
+    .select('id, full_name, phone_number, email')
+    .single();
+  if (error) throw error;
+  return data;
+}
+
 module.exports = {
   getProfileById,
   updateLoyaltyPoints,
+  updateProfile,
   redeemPoints,
   getVouchers,
   lookupVoucherByCode,

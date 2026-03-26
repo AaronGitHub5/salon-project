@@ -20,7 +20,6 @@ async function getVouchers(req, res) {
   }
 }
 
-// Admin: lookup voucher by code
 async function lookupVoucher(req, res) {
   try {
     const { code } = req.query;
@@ -33,7 +32,6 @@ async function lookupVoucher(req, res) {
   }
 }
 
-// Admin: mark voucher as used
 async function markVoucherUsed(req, res) {
   try {
     const { id } = req.params;
@@ -44,4 +42,18 @@ async function markVoucherUsed(req, res) {
   }
 }
 
-module.exports = { redeemPoints, getVouchers, lookupVoucher, markVoucherUsed };
+async function updateProfile(req, res) {
+  try {
+    // Users can only update their own profile
+    if (req.user.id !== req.params.id) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    const { full_name, phone_number } = req.body;
+    const data = await profilesDao.updateProfile(req.params.id, { full_name, phone_number });
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
+module.exports = { redeemPoints, getVouchers, lookupVoucher, markVoucherUsed, updateProfile };
