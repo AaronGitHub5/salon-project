@@ -103,9 +103,9 @@ export function AuthProvider({ children }) {
     return { data, error };
   };
 
-  const signOut = async () => {
+  const signOut = () => {
     nukeStorage();
-    await supabase.auth.signOut().catch(() => {});
+    supabase.auth.signOut().catch(() => {});
     window.location.href = '/login';
   };
 
