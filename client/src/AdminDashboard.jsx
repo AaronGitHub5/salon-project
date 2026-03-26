@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import GuestBookingModal from './GuestBookingModal';
 import AdminAnalytics from './AdminAnalytics';
+import AdminStylists from './AdminStylists';
 import API_URL from './config';
 
 function VoucherLookup({ authHeader }) {
@@ -299,6 +300,7 @@ export default function AdminDashboard() {
         {[
           { key: 'analytics', label: 'Overview & Stats' },
           { key: 'services', label: 'Service Menu' },
+          { key: 'stylists', label: 'Stylists' },
           { key: 'loyalty', label: 'Loyalty & Vouchers' },
           { key: 'reviews', label: 'Reviews' },
         ].map(({ key, label }) => (
@@ -394,6 +396,12 @@ export default function AdminDashboard() {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {activeTab === 'stylists' && (
+        <div className="animate-fade-in">
+          <AdminStylists authHeader={authHeader} />
         </div>
       )}
 

@@ -29,7 +29,16 @@ async function createBooking({ customer_id, service_id, stylist_id, start_time }
   if (conflict) throw Object.assign(new Error('Time slot unavailable.'), { status: 409 });
 
   const booking = await bookingsDao.createBooking({ customer_id, service_id, stylist_id, start_time: start, end_time: end });
-  const finalPrice = calculatePrice(service.base_price, stylist.price_multiplier, start_time);
+
+  // Use per-stylist peak config (all fields default if not yet set)
+  const { price: finalPrice } = calculatePrice(
+    service.base_price,
+    stylist.price_multiplier,
+    start_time,
+    stylist.peak_surcharge_percent ?? 15,
+    stylist.peak_days ?? [5, 6],
+    stylist.peak_hour_start ?? 17
+  );
 
   const profile = await profilesDao.getProfileById(customer_id);
   if (profile?.email) {
@@ -64,7 +73,16 @@ async function createGuestBooking({ guestName, guestPhone, guestEmail, serviceId
   }
 
   const booking = await bookingsDao.createGuestBooking({ guest_id: guest.id, service_id: serviceId, stylist_id: stylistId, start_time: start, end_time: end });
-  const finalPrice = calculatePrice(service.base_price, stylist.price_multiplier, startTime);
+
+  // Use per-stylist peak config (all fields default if not yet set)
+  const { price: finalPrice } = calculatePrice(
+    service.base_price,
+    stylist.price_multiplier,
+    startTime,
+    stylist.peak_surcharge_percent ?? 15,
+    stylist.peak_days ?? [5, 6],
+    stylist.peak_hour_start ?? 17
+  );
 
   if (guestEmail) {
     await sendEmail(
@@ -96,12 +114,10 @@ async function completeBooking(id) {
   await bookingsDao.completeBooking(id);
 
   if (booking.customer_id) {
-    // Award 1 visit stamp
     const profile = await profilesDao.getProfileById(booking.customer_id);
     const newVisits = (profile.loyalty_points || 0) + 1;
     await profilesDao.updateLoyaltyPoints(booking.customer_id, newVisits);
 
-    // Send review request email
     if (profile?.email) {
       await sendEmail(
         profile.email,

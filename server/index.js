@@ -9,6 +9,7 @@ const { initMail } = require('./services/email.service');
 const servicesRouter = require('./routes/services.routes');
 const bookingsRouter = require('./routes/bookings.routes');
 const stylistsRouter = require('./routes/stylists.routes');
+const shiftsRouter = require('./routes/shifts.routes');
 const availabilityRouter = require('./routes/availability.routes');
 const analyticsRouter = require('./routes/analytics.routes');
 const reviewsRouter = require('./routes/reviews.routes');
@@ -33,6 +34,7 @@ app.get('/api/health', (req, res) =>
 app.use('/api/services', servicesRouter);
 app.use('/api/bookings', bookingsRouter);
 app.use('/api/stylists', stylistsRouter);
+app.use('/api/shifts', shiftsRouter);
 app.use('/api/availability', availabilityRouter);
 app.use('/api/analytics', analyticsRouter);
 app.use('/api/reviews', reviewsRouter);
