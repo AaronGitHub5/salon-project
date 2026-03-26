@@ -1,4 +1,5 @@
 const express = require('express');
+const { createClient } = require('@supabase/supabase-js');
 const supabase = require('../supabaseClient');
 const router = express.Router();
 
@@ -52,8 +53,12 @@ router.post('/change-password', async (req, res) => {
     return res.status(401).json({ error: 'Invalid session.' });
   }
 
-  // Verify current password
-  const { error: signInError } = await supabase.auth.signInWithPassword({
+  // Verify current password using a throwaway client so we don't
+  // corrupt the shared service-role client's auth state
+  const tempClient = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const { error: signInError } = await tempClient.auth.signInWithPassword({
     email: user.email,
     password: currentPassword,
   });
