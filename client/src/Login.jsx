@@ -135,6 +135,11 @@ export default function Login() {
     setError('');
     setLoading(true);
     try {
+      // Ensure the recovery session is fully established before updating
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('Session expired. Please request a new password reset link.');
+      }
       const { error } = await supabase.auth.updateUser({ password: newPassword });
       if (error) throw error;
       setSuccess('Password updated successfully!');
