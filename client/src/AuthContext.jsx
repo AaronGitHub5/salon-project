@@ -41,10 +41,13 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     let ignore = false;
+    let fallback;
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (ignore) return;
+        // Cancel fallback — it only exists for when this listener never fires
+        clearTimeout(fallback);
 
         // PASSWORD_RECOVERY: set recovery mode flag, keep session for updateUser()
         // but do NOT set role — prevents redirect to dashboard.
@@ -92,7 +95,7 @@ export function AuthProvider({ children }) {
     );
 
     // Fallback: clear loading if onAuthStateChange never fires
-    const fallback = setTimeout(() => setLoading(false), 500);
+    fallback = setTimeout(() => setLoading(false), 500);
 
     return () => {
       ignore = true;
