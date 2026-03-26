@@ -11,8 +11,7 @@ function nukeStorage() {
   });
 }
 
-// Run version check synchronously before anything else
-// so stale sessions are cleared before onAuthStateChange fires
+
 const storedVersion = localStorage.getItem('auth_version');
 if (storedVersion !== AUTH_VERSION) {
   nukeStorage();
@@ -75,6 +74,8 @@ export function AuthProvider({ children }) {
   const signOut = async () => {
     nukeStorage();
     await supabase.auth.signOut().catch(() => {});
+    // Force full reload — guarantees redirect works even with expired token
+    window.location.href = '/login';
   };
 
   if (loading) return null;

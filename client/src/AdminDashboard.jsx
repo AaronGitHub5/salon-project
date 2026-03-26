@@ -280,7 +280,7 @@ export default function AdminDashboard() {
 
   const handleLogout = async () => {
     await signOut();
-    navigate('/login');
+    // signOut handles redirect via window.location.href
   };
 
   return (
