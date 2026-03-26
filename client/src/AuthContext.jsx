@@ -101,12 +101,12 @@ export function AuthProvider({ children }) {
         // but a session exists, the browser was reopened — force re-login.
         if (userRole === 'admin') {
           if (!sessionStorage.getItem('admin_session_active')) {
+            // Browser was closed — force re-login.
+            // Don't call signOut() here (triggers reentrant auth events).
+            // Just clear storage and do a hard redirect.
+            ignore = true;
             nukeStorage();
-            supabase.auth.signOut().catch(() => {});
-            setUser(null);
-            setRole(null);
-            setSession(null);
-            setLoading(false);
+            window.location.href = '/login';
             return;
           }
         } else {
