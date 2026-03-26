@@ -18,6 +18,7 @@ export default function Login() {
   const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [isResetPassword, setIsResetPassword] = useState(false);
   const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
@@ -37,7 +38,7 @@ export default function Login() {
     if (role === 'admin') navigate('/admin', { replace: true });
     else if (role === 'stylist') navigate('/stylist', { replace: true });
     else navigate(appPath, { replace: true });
-  }, [user, role]); 
+  }, [user, role]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleToggleMode = () => {
     setIsSignUp(v => !v);
@@ -109,7 +110,7 @@ export default function Login() {
     setLoading(true);
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: 'https://hairbyamnesia.co.uk',
+        redirectTo: 'https://hairbyamnesia.co.uk/login',
       });
       if (error) throw error;
       setSuccess('Password reset email sent! Check your inbox.');
@@ -121,6 +122,14 @@ export default function Login() {
   };
 
   const handleResetPassword = async (e) => {
+    if (newPassword !== confirmNewPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+    if (newPassword.length < 6) {
+      setError('Password must be at least 6 characters.');
+      return;
+    }
     e.preventDefault();
     setError('');
     setLoading(true);
@@ -141,22 +150,43 @@ export default function Login() {
 
   // --- RESET PASSWORD FORM ---
   if (isResetPassword) {
+    const resetMismatch = confirmNewPassword && confirmNewPassword !== newPassword;
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 font-sans">
         <div className="bg-white p-8 rounded shadow-lg w-96 border border-gray-100">
-          <h2 className="text-2xl font-light uppercase tracking-widest mb-6 text-center">New Password</h2>
+          <h2 className="text-2xl font-light uppercase tracking-widest mb-2 text-center">New Password</h2>
+          <p className="text-xs text-gray-400 text-center mb-6">Enter and confirm your new password below.</p>
           {error && <p className="bg-red-50 text-red-600 p-3 text-xs mb-4">{error}</p>}
           {success && <p className="bg-green-50 text-green-600 p-3 text-xs mb-4">{success}</p>}
           <form onSubmit={handleResetPassword} className="flex flex-col gap-4">
-            <input
-              type="password"
-              placeholder="New Password"
-              minLength={6}
-              required
-              className="border p-3 text-sm focus:outline-black transition"
-              onChange={(e) => setNewPassword(e.target.value)}
-            />
-            <button disabled={loading} className="bg-black text-white p-3 text-xs font-bold uppercase tracking-widest hover:bg-gray-800 transition">
+            <div>
+              <label className="text-[10px] text-gray-400 uppercase tracking-widest block mb-1">New Password <span className="text-gray-300">(min. 6 characters)</span></label>
+              <input
+                type="password"
+                placeholder="New password"
+                minLength={6}
+                required
+                className="w-full border p-3 text-sm focus:outline-black transition"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-[10px] text-gray-400 uppercase tracking-widest block mb-1">Confirm New Password</label>
+              <input
+                type="password"
+                placeholder="Repeat new password"
+                required
+                className={`w-full border p-3 text-sm focus:outline-black transition ${resetMismatch ? 'border-red-300' : ''}`}
+                value={confirmNewPassword}
+                onChange={(e) => setConfirmNewPassword(e.target.value)}
+              />
+              {resetMismatch && <p className="text-xs text-red-500 mt-1">✕ Passwords do not match</p>}
+            </div>
+            <button
+              disabled={loading || !!resetMismatch}
+              className="bg-black text-white p-3 text-xs font-bold uppercase tracking-widest hover:bg-gray-800 transition disabled:opacity-50"
+            >
               {loading ? 'Updating...' : 'Update Password'}
             </button>
           </form>

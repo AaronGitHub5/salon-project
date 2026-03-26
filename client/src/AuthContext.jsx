@@ -11,7 +11,6 @@ function nukeStorage() {
   });
 }
 
-
 const storedVersion = localStorage.getItem('auth_version');
 if (storedVersion !== AUTH_VERSION) {
   nukeStorage();
@@ -41,6 +40,14 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        // PASSWORD_RECOVERY: keep the session alive so updateUser() works
+        if (event === 'PASSWORD_RECOVERY') {
+          setSession(session);
+          setUser(session.user);
+          setLoading(false);
+          return;
+        }
+
         if (event === 'SIGNED_OUT' || !session) {
           setUser(null);
           setRole(null);
@@ -74,7 +81,6 @@ export function AuthProvider({ children }) {
   const signOut = async () => {
     nukeStorage();
     await supabase.auth.signOut().catch(() => {});
-    // Force full reload — guarantees redirect works even with expired token
     window.location.href = '/login';
   };
 
