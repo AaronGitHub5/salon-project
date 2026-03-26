@@ -100,23 +100,18 @@ export function AuthProvider({ children }) {
         // sessionStorage is cleared on browser close, so if the flag is missing
         // but a session exists, the browser was reopened — force re-login.
         if (userRole === 'admin') {
-          if (!sessionStorage.getItem('admin_session_active')) {
-            // Browser was closed — force re-login.
-            // Don't call signOut() here (triggers reentrant auth events).
-            // Just clear storage and do a hard redirect.
+          if (event !== 'SIGNED_IN' && !sessionStorage.getItem('admin_session_active')) {
+            // Browser was reopened (INITIAL_SESSION/TOKEN_REFRESHED) with no
+            // sessionStorage flag — force re-login.
             ignore = true;
             nukeStorage();
             window.location.href = '/login';
             return;
           }
+          sessionStorage.setItem('admin_session_active', '1');
         } else {
           // Clean up flag if a non-admin signs in
           sessionStorage.removeItem('admin_session_active');
-        }
-
-        // Set flag for admin so the session persists within the browser session
-        if (userRole === 'admin') {
-          sessionStorage.setItem('admin_session_active', '1');
         }
 
         setRole(userRole);
