@@ -144,7 +144,10 @@ export default function Login() {
         window.location.hash = '';
       }, 2000);
     } catch (err) {
-      setError(err.message);
+      // Ignore internal Supabase abort errors during recovery token processing
+      if (!err.message?.includes('aborted')) {
+        setError(err.message);
+      }
     } finally {
       setLoading(false);
     }
@@ -152,6 +155,7 @@ export default function Login() {
 
   // --- RESET PASSWORD FORM ---
   if (isResetPassword) {
+    // Supabase fires internal abort errors during recovery token processing — clear them
     const resetMismatch = confirmNewPassword && confirmNewPassword !== newPassword;
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 font-sans">
