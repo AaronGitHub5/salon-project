@@ -79,6 +79,7 @@ export function AuthProvider({ children }) {
           return;
         }
 
+        setLoading(true);
         setRole(null);
         setUser(session.user);
         setSession(session);
