@@ -6,6 +6,7 @@ import CustomerView from './CustomerView';
 import AdminDashboard from './AdminDashboard';
 import Profile from './Profile';
 import StylistSchedule from './StylistSchedule';
+import ResetPassword from './ResetPassword';
 // import LandingPage from './LandingPage'; // tomorrow
 
 function RootRedirect() {
@@ -32,6 +33,7 @@ export default function App() {
       {/* Public */}
       <Route path="/" element={<RootRedirect />} />
       <Route path="/login" element={<Login />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
 
       {/* Customer */}
       <Route
