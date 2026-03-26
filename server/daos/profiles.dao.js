@@ -25,13 +25,10 @@ async function redeemPoints(id) {
     throw Object.assign(new Error('You need 10 visits to redeem a voucher.'), { status: 400 });
   }
 
-  // Reset visit count to 0
   await updateLoyaltyPoints(id, 0);
 
-  // Generate voucher code
   const code = 'AMNESIA10-' + Math.random().toString(36).substring(2, 7).toUpperCase();
 
-  // Save voucher to database
   const { data: voucher, error } = await supabase
     .from('vouchers')
     .insert([{ customer_id: id, code, discount: 10, used: false }])
@@ -52,4 +49,40 @@ async function getVouchers(customerId) {
   return data;
 }
 
-module.exports = { getProfileById, updateLoyaltyPoints, redeemPoints, getVouchers };
+async function lookupVoucherByCode(code) {
+  const { data, error } = await supabase
+    .from('vouchers')
+    .select(`
+      id,
+      code,
+      discount,
+      used,
+      created_at,
+      profiles:customer_id ( full_name, email )
+    `)
+    .eq('code', code.toUpperCase().trim())
+    .single();
+  if (error) return null;
+  return data;
+}
+
+async function markVoucherUsed(voucherId) {
+  const { data, error } = await supabase
+    .from('vouchers')
+    .update({ used: true })
+    .eq('id', voucherId)
+    .select()
+    .single();
+  if (error) throw error;
+  if (!data) throw Object.assign(new Error('Voucher not found'), { status: 404 });
+  return data;
+}
+
+module.exports = {
+  getProfileById,
+  updateLoyaltyPoints,
+  redeemPoints,
+  getVouchers,
+  lookupVoucherByCode,
+  markVoucherUsed,
+};
