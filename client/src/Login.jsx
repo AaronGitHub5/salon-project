@@ -23,12 +23,17 @@ export default function Login() {
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Detect password reset link
+  // Detect password reset link and clear hash so Supabase doesn't re-process it
   useEffect(() => {
     const hash = window.location.hash;
     if (hash.includes('type=recovery')) {
       setIsResetPassword(true);
-      setError(''); // clear any stale errors from previous navigation
+      setError('');
+      // Clear the hash after Supabase has read it, to prevent repeated token processing
+      // which causes "signal is aborted without reason" on subsequent auth calls
+      setTimeout(() => {
+        window.history.replaceState(null, '', window.location.pathname + window.location.search);
+      }, 1000);
     }
   }, []);
 
@@ -135,11 +140,6 @@ export default function Login() {
     setError('');
     setLoading(true);
     try {
-      // Ensure the recovery session is fully established before updating
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        throw new Error('Session expired. Please request a new password reset link.');
-      }
       const { error } = await supabase.auth.updateUser({ password: newPassword });
       if (error) throw error;
       setSuccess('Password updated successfully!');
