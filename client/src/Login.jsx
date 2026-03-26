@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import { supabase } from './lib/supabase';
+import API_URL from './config';
 
 export default function Login() {
   const { signIn, signUp, user, role, clearRecoveryMode } = useAuth();
@@ -23,10 +24,14 @@ export default function Login() {
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Detect password reset link
+  // Detect password reset link and extract token directly from hash
+  const recoveryAccessToken = useRef(null);
   useEffect(() => {
     const hash = window.location.hash;
     if (hash.includes('type=recovery')) {
+      // Parse access_token from hash: #access_token=xxx&refresh_token=...&type=recovery
+      const params = new URLSearchParams(hash.substring(1));
+      recoveryAccessToken.current = params.get('access_token');
       setIsResetPassword(true);
       setError('');
     }
@@ -111,7 +116,8 @@ export default function Login() {
     setLoading(true);
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: 'https://hairbyamnesia.co.uk/login',
+      redirectTo: 'https://hairbyamnesia.co.uk/login',
+
       });
       if (error) throw error;
       setSuccess('Password reset email sent! Check your inbox.');
@@ -135,8 +141,20 @@ export default function Login() {
     setError('');
     setLoading(true);
     try {
-      const { error } = await supabase.auth.updateUser({ password: newPassword });
-      if (error) throw error;
+      const token = recoveryAccessToken.current;
+      if (!token) {
+        throw new Error('Session expired. Please request a new password reset link.');
+      }
+      const res = await fetch(`${API_URL}/api/auth/reset-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ password: newPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
       setSuccess('Password updated successfully!');
       clearRecoveryMode();
       setTimeout(() => {

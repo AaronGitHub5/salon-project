@@ -37,11 +37,15 @@ export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isRecoveryMode, setIsRecoveryMode] = useState(false);
-  const recoveryRef = useRef(false); // ref so onAuthStateChange closure always reads current value
+  const recoveryRef = useRef(false);
 
   useEffect(() => {
+    let ignore = false;
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        if (ignore) return;
+
         // PASSWORD_RECOVERY: set recovery mode flag, keep session for updateUser()
         // but do NOT set role — prevents redirect to dashboard.
         if (event === 'PASSWORD_RECOVERY') {
@@ -76,6 +80,7 @@ export function AuthProvider({ children }) {
         }
 
         const userRole = await fetchRole(session.user.id);
+        if (ignore) return;
         setUser(session.user);
         setRole(userRole);
         setSession(session);
@@ -87,6 +92,7 @@ export function AuthProvider({ children }) {
     const fallback = setTimeout(() => setLoading(false), 500);
 
     return () => {
+      ignore = true;
       subscription.unsubscribe();
       clearTimeout(fallback);
     };
