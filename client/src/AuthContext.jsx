@@ -115,7 +115,14 @@ export function AuthProvider({ children }) {
     window.location.href = '/login';
   };
 
-  if (loading) return null;
+  if (loading) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f9fafb' }}>
+        <div style={{ width: 24, height: 24, border: '2px solid #ccc', borderTopColor: '#000', borderRadius: '50%', animation: 'spin 0.6s linear infinite' }} />
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
 
   return (
     <AuthContext.Provider

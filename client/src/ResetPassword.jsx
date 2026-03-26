@@ -3,16 +3,16 @@ import { useAuth } from './AuthContext';
 import API_URL from './config';
 
 export default function ResetPassword() {
-  const { session, isRecoveryMode, clearRecoveryMode } = useAuth();
+  const { session, isRecoveryMode } = useAuth();
 
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // AuthContext handles the recovery hash and sets isRecoveryMode + session
-  if (!isRecoveryMode || !session?.access_token) {
+  // Show invalid link only if not in recovery mode AND not already showing success
+  if (!success && (!isRecoveryMode || !session?.access_token)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 font-sans">
         <div className="bg-white p-8 rounded shadow-lg w-96 border border-gray-100 text-center">
@@ -47,9 +47,14 @@ export default function ResetPassword() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      setSuccess('Password updated successfully! Redirecting to login...');
-      clearRecoveryMode();
+      // Show success first, then clear session and redirect.
+      // Avoid calling signOut() — it triggers SIGNED_OUT event which
+      // clears isRecoveryMode before the redirect, causing an "Invalid Link" flash.
+      setSuccess(true);
       setTimeout(() => {
+        Object.keys(localStorage).forEach((key) => {
+          if (key.startsWith('sb-')) localStorage.removeItem(key);
+        });
         window.location.href = '/login';
       }, 2000);
     } catch (err) {
@@ -59,6 +64,21 @@ export default function ResetPassword() {
     }
   };
 
+  // Success screen
+  if (success) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 font-sans">
+        <div className="bg-white p-8 rounded shadow-lg w-96 border border-gray-100 text-center">
+          <div className="w-12 h-12 rounded-full bg-black flex items-center justify-center mx-auto mb-4">
+            <span className="text-white text-xl">&#10003;</span>
+          </div>
+          <h2 className="text-2xl font-light uppercase tracking-widest mb-2">Password Updated</h2>
+          <p className="text-sm text-gray-500">Redirecting to login...</p>
+        </div>
+      </div>
+    );
+  }
+
   const resetMismatch = confirmNewPassword && confirmNewPassword !== newPassword;
 
   return (
@@ -67,7 +87,6 @@ export default function ResetPassword() {
         <h2 className="text-2xl font-light uppercase tracking-widest mb-2 text-center">New Password</h2>
         <p className="text-xs text-gray-400 text-center mb-6">Enter and confirm your new password below.</p>
         {error && <p className="bg-red-50 text-red-600 p-3 text-xs mb-4">{error}</p>}
-        {success && <p className="bg-green-50 text-green-600 p-3 text-xs mb-4">{success}</p>}
         <form onSubmit={handleResetPassword} className="flex flex-col gap-4">
           <div>
             <label className="text-[10px] text-gray-400 uppercase tracking-widest block mb-1">New Password <span className="text-gray-300">(min. 6 characters)</span></label>
