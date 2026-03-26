@@ -79,11 +79,15 @@ export function AuthProvider({ children }) {
           return;
         }
 
+        // Clear stale role before fetching new one — prevents briefly
+        // inheriting the previous user's role during the async fetch.
+        setRole(null);
+        setUser(session.user);
+        setSession(session);
+
         const userRole = await fetchRole(session.user.id);
         if (ignore) return;
-        setUser(session.user);
         setRole(userRole);
-        setSession(session);
         setLoading(false);
       }
     );
