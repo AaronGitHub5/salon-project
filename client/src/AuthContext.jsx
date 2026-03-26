@@ -95,6 +95,30 @@ export function AuthProvider({ children }) {
         fetchingRoleRef.current = false;
         clearTimeout(fallback);
         if (ignore) return;
+
+        // Admin sessions expire when the browser closes.
+        // sessionStorage is cleared on browser close, so if the flag is missing
+        // but a session exists, the browser was reopened — force re-login.
+        if (userRole === 'admin') {
+          if (!sessionStorage.getItem('admin_session_active')) {
+            nukeStorage();
+            supabase.auth.signOut().catch(() => {});
+            setUser(null);
+            setRole(null);
+            setSession(null);
+            setLoading(false);
+            return;
+          }
+        } else {
+          // Clean up flag if a non-admin signs in
+          sessionStorage.removeItem('admin_session_active');
+        }
+
+        // Set flag for admin so the session persists within the browser session
+        if (userRole === 'admin') {
+          sessionStorage.setItem('admin_session_active', '1');
+        }
+
         setRole(userRole);
         setLoading(false);
       }
@@ -120,6 +144,7 @@ export function AuthProvider({ children }) {
 
   const signOut = () => {
     nukeStorage();
+    sessionStorage.removeItem('admin_session_active');
     supabase.auth.signOut().catch(() => {});
     window.location.href = '/login';
   };
