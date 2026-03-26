@@ -38,6 +38,7 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [isRecoveryMode, setIsRecoveryMode] = useState(false);
   const recoveryRef = useRef(false);
+  const fetchingRoleRef = useRef(false);
 
   useEffect(() => {
     let ignore = false;
@@ -66,6 +67,7 @@ export function AuthProvider({ children }) {
         if (event === 'SIGNED_OUT' || !session) {
           clearTimeout(fallback);
           recoveryRef.current = false;
+          fetchingRoleRef.current = false;
           setUser(null);
           setRole(null);
           setSession(null);
@@ -83,13 +85,14 @@ export function AuthProvider({ children }) {
           return;
         }
 
-        // Keep fallback timer running as a safety net in case fetchRole hangs
         setLoading(true);
         setRole(null);
         setUser(session.user);
         setSession(session);
 
+        fetchingRoleRef.current = true;
         const userRole = await fetchRole(session.user.id);
+        fetchingRoleRef.current = false;
         clearTimeout(fallback);
         if (ignore) return;
         setRole(userRole);
@@ -97,8 +100,11 @@ export function AuthProvider({ children }) {
       }
     );
 
-    // Fallback: clear loading if auth never resolves (event never fires or fetchRole hangs)
-    fallback = setTimeout(() => { if (!ignore) setLoading(false); }, 3000);
+    // Fallback: clear loading if auth never resolves.
+    // Only fires if we're NOT actively fetching a role (prevents wrong role assignment).
+    fallback = setTimeout(() => {
+      if (!ignore && !fetchingRoleRef.current) setLoading(false);
+    }, 3000);
 
     return () => {
       ignore = true;
