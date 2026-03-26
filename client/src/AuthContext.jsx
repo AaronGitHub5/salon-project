@@ -79,8 +79,9 @@ export function AuthProvider({ children }) {
           return;
         }
 
-        // Clear stale role before fetching new one — prevents briefly
-        // inheriting the previous user's role during the async fetch.
+        // Block rendering while fetching the new user's role to prevent
+        // briefly showing the wrong dashboard during account switches.
+        setLoading(true);
         setRole(null);
         setUser(session.user);
         setSession(session);
