@@ -50,6 +50,10 @@ export function AuthProvider({ children }) {
           setSession(session);
           setUser(session.user);
           setLoading(false);
+          // Clear the recovery hash now that Supabase has processed it.
+          // Leaving it causes Supabase to re-process the token on subsequent
+          // auth calls, triggering "signal is aborted without reason".
+          window.history.replaceState(null, '', window.location.pathname + window.location.search);
           return;
         }
 
