@@ -46,12 +46,11 @@ export function AuthProvider({ children }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (ignore) return;
-        // Cancel fallback — it only exists for when this listener never fires
-        clearTimeout(fallback);
 
         // PASSWORD_RECOVERY: set recovery mode flag, keep session for updateUser()
         // but do NOT set role — prevents redirect to dashboard.
         if (event === 'PASSWORD_RECOVERY') {
+          clearTimeout(fallback);
           recoveryRef.current = true;
           setIsRecoveryMode(true);
           setSession(session);
@@ -65,6 +64,7 @@ export function AuthProvider({ children }) {
         }
 
         if (event === 'SIGNED_OUT' || !session) {
+          clearTimeout(fallback);
           recoveryRef.current = false;
           setUser(null);
           setRole(null);
@@ -78,24 +78,27 @@ export function AuthProvider({ children }) {
         // recovery form stays visible and does not redirect to dashboard.
         // Use ref instead of state to avoid stale closure.
         if (recoveryRef.current) {
+          clearTimeout(fallback);
           setLoading(false);
           return;
         }
 
+        // Keep fallback timer running as a safety net in case fetchRole hangs
         setLoading(true);
         setRole(null);
         setUser(session.user);
         setSession(session);
 
         const userRole = await fetchRole(session.user.id);
+        clearTimeout(fallback);
         if (ignore) return;
         setRole(userRole);
         setLoading(false);
       }
     );
 
-    // Fallback: clear loading if onAuthStateChange never fires
-    fallback = setTimeout(() => setLoading(false), 500);
+    // Fallback: clear loading if auth never resolves (event never fires or fetchRole hangs)
+    fallback = setTimeout(() => { if (!ignore) setLoading(false); }, 3000);
 
     return () => {
       ignore = true;
