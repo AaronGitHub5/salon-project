@@ -67,39 +67,4 @@ router.post('/change-password', async (req, res) => {
   res.json({ message: 'Password updated successfully.' });
 });
 
-// POST /api/auth/change-email
-// Authenticated user changes their email (requires current password)
-router.post('/change-email', async (req, res) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Missing authorization header.' });
-  }
-
-  const token = authHeader.split(' ')[1];
-  const { newEmail, currentPassword } = req.body;
-
-  if (!newEmail) {
-    return res.status(400).json({ error: 'New email is required.' });
-  }
-
-  const { data: { user }, error: userError } = await supabase.auth.getUser(token);
-  if (userError || !user) {
-    return res.status(401).json({ error: 'Invalid session.' });
-  }
-
-  // Verify current password
-  const { error: signInError } = await supabase.auth.signInWithPassword({
-    email: user.email,
-    password: currentPassword,
-  });
-  if (signInError) {
-    return res.status(401).json({ error: 'Current password is incorrect.' });
-  }
-
-  const { error } = await supabase.auth.admin.updateUserById(user.id, { email: newEmail });
-  if (error) return res.status(500).json({ error: error.message });
-
-  res.json({ message: 'Email updated successfully.' });
-});
-
 module.exports = router;

@@ -72,10 +72,6 @@ export default function Profile() {
   const [savingInfo, setSavingInfo] = useState(false);
 
   // Settings — email change
-  const [newEmail, setNewEmail] = useState('');
-  const [emailPassword, setEmailPassword] = useState('');
-  const [emailFeedback, setEmailFeedback] = useState(null);
-  const [savingEmail, setSavingEmail] = useState(false);
 
   // Settings — password change
   const [currentPassword, setCurrentPassword] = useState('');
@@ -189,24 +185,6 @@ export default function Profile() {
       else { const d = await res.json(); setInfoFeedback({ type: 'error', msg: d.error || 'Failed to save.' }); }
     } catch { setInfoFeedback({ type: 'error', msg: 'Something went wrong.' }); }
     finally { setSavingInfo(false); }
-  };
-
-  // Change email — via server endpoint
-  const handleChangeEmail = async (e) => {
-    e.preventDefault();
-    if (!newEmail || !emailPassword) return;
-    setSavingEmail(true); setEmailFeedback(null);
-    try {
-      const res = await fetch(`${API_URL}/api/auth/change-email`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
-        body: JSON.stringify({ newEmail, currentPassword: emailPassword }),
-      });
-      const data = await res.json();
-      if (!res.ok) { setEmailFeedback({ type: 'error', msg: data.error }); return; }
-      setEmailFeedback({ type: 'success', msg: 'Email updated successfully.' }); setNewEmail(''); setEmailPassword('');
-    } catch { setEmailFeedback({ type: 'error', msg: 'Something went wrong.' }); }
-    finally { setSavingEmail(false); }
   };
 
   // Change password — via server endpoint
@@ -407,29 +385,6 @@ export default function Profile() {
               </form>
             </SettingsSection>
 
-            {/* Change Email */}
-            <SettingsSection title="Change Email Address">
-              <p className="text-xs text-gray-400 mb-4">Current: <span className="font-medium text-gray-600">{user?.email}</span></p>
-              <form onSubmit={handleChangeEmail} className="space-y-4 max-w-md">
-                <div>
-                  <label className="text-xs text-gray-500 uppercase tracking-widest block mb-1">New Email Address</label>
-                  <input type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)}
-                    placeholder="new@email.com" required
-                    className="w-full border border-gray-300 p-3 text-sm bg-gray-50 focus:outline-black rounded" />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 uppercase tracking-widest block mb-1">Confirm Current Password</label>
-                  <input type="password" value={emailPassword} onChange={e => setEmailPassword(e.target.value)}
-                    placeholder="Enter your current password" required
-                    className="w-full border border-gray-300 p-3 text-sm bg-gray-50 focus:outline-black rounded" />
-                </div>
-                <button disabled={savingEmail} className="bg-black text-white px-6 py-3 text-xs font-bold uppercase rounded hover:bg-gray-800 disabled:opacity-50 transition">
-                  {savingEmail ? 'Updating...' : 'Update Email'}
-                </button>
-                <FeedbackMsg type={emailFeedback?.type} msg={emailFeedback?.msg} />
-              </form>
-            </SettingsSection>
-
             {/* Change Password */}
             <SettingsSection title="Change Password">
               <form onSubmit={handleChangePassword} className="space-y-4 max-w-md">
@@ -461,21 +416,8 @@ export default function Profile() {
               </form>
             </SettingsSection>
 
-            {/* Account Info */}
+            {/* Account */}
             <SettingsSection title="Account">
-              <div className="flex gap-6 mb-6">
-                <div>
-                  <p className="text-xs font-bold uppercase text-gray-400 mb-1">Role</p>
-                  <span className="bg-blue-100 text-blue-800 text-[10px] px-2 py-1 rounded uppercase font-bold">{role || 'Customer'}</span>
-                </div>
-                {isCustomer && (
-                  <div>
-                    <p className="text-xs font-bold uppercase text-gray-400 mb-1">Loyalty Balance</p>
-                    <span className="text-lg font-mono font-bold text-black">{points} Visits</span>
-                  </div>
-                )}
-              </div>
-
               {/* Danger Zone */}
               <div className="border border-red-100 rounded-lg p-4 bg-red-50">
                 <p className="text-xs font-bold uppercase tracking-widest text-red-600 mb-1">Danger Zone</p>
