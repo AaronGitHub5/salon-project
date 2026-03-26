@@ -28,6 +28,7 @@ export default function Login() {
     const hash = window.location.hash;
     if (hash.includes('type=recovery')) {
       setIsResetPassword(true);
+      setError(''); // clear any stale errors from previous navigation
     }
   }, []);
 
