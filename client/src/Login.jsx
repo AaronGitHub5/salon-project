@@ -144,10 +144,7 @@ export default function Login() {
         window.location.hash = '';
       }, 2000);
     } catch (err) {
-      // Ignore internal Supabase abort errors during recovery token processing
-      if (!err.message?.includes('aborted')) {
-        setError(err.message);
-      }
+      setError(err.message);
     } finally {
       setLoading(false);
     }
