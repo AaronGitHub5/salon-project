@@ -11,7 +11,9 @@ export default function Login() {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [fullName, setFullName] = useState('');
+  const [phone, setPhone] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
   const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [isResetPassword, setIsResetPassword] = useState(false);
@@ -35,20 +37,43 @@ export default function Login() {
     if (role === 'admin') navigate('/admin', { replace: true });
     else if (role === 'stylist') navigate('/stylist', { replace: true });
     else navigate(appPath, { replace: true });
-  }, [user, role]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user, role]); 
+
+  const handleToggleMode = () => {
+    setIsSignUp(v => !v);
+    setError('');
+    setConfirmPassword('');
+    setPhone('');
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setSuccess('');
-    setLoading(true);
 
+    if (isSignUp) {
+      if (password !== confirmPassword) {
+        setError('Passwords do not match.');
+        return;
+      }
+      if (password.length < 6) {
+        setError('Password must be at least 6 characters.');
+        return;
+      }
+    }
+
+    setLoading(true);
     try {
       if (isSignUp) {
         const { error } = await signUp({
           email,
           password,
-          options: { data: { full_name: fullName } },
+          options: {
+            data: {
+              full_name: fullName,
+              phone_number: phone || null,
+            },
+          },
         });
         if (error) {
           if (error.message.includes('User already registered')) {
@@ -69,7 +94,6 @@ export default function Login() {
           }
           return;
         }
-        // Navigation handled by the useEffect above once role is set
       }
     } catch (err) {
       setError(err.message);
@@ -170,7 +194,9 @@ export default function Login() {
     );
   }
 
-  // --- MAIN LOGIN/SIGNUP FORM ---
+  // --- MAIN LOGIN / SIGNUP FORM ---
+  const passwordMismatch = isSignUp && confirmPassword && confirmPassword !== password;
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 font-sans">
       <div className="bg-white p-8 rounded shadow-lg w-96 border border-gray-100">
@@ -182,29 +208,86 @@ export default function Login() {
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           {isSignUp && (
+            <>
+              <div>
+                <label className="text-[10px] text-gray-400 uppercase tracking-widest block mb-1">Full Name</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Jane Smith"
+                  className="w-full border p-3 text-sm focus:outline-black transition"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] text-gray-400 uppercase tracking-widest block mb-1">
+                  Phone Number <span className="text-gray-300">(optional)</span>
+                </label>
+                <input
+                  type="tel"
+                  placeholder="e.g. 07700 900000"
+                  className="w-full border p-3 text-sm focus:outline-black transition"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                />
+              </div>
+            </>
+          )}
+
+          <div>
+            {isSignUp && (
+              <label className="text-[10px] text-gray-400 uppercase tracking-widest block mb-1">Email Address</label>
+            )}
             <input
-              type="text"
-              placeholder="Full Name"
-              className="border p-3 text-sm focus:outline-black transition"
-              onChange={(e) => setFullName(e.target.value)}
+              type="email"
+              placeholder="Email Address"
+              className="w-full border p-3 text-sm focus:outline-black transition"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               required
             />
+          </div>
+
+          <div>
+            {isSignUp && (
+              <label className="text-[10px] text-gray-400 uppercase tracking-widest block mb-1">
+                Password <span className="text-gray-300">(min. 6 characters)</span>
+              </label>
+            )}
+            <input
+              type="password"
+              placeholder="Password"
+              className="w-full border p-3 text-sm focus:outline-black transition"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              minLength={6}
+            />
+          </div>
+
+          {isSignUp && (
+            <div>
+              <label className="text-[10px] text-gray-400 uppercase tracking-widest block mb-1">Confirm Password</label>
+              <input
+                type="password"
+                placeholder="Repeat password"
+                className={`w-full border p-3 text-sm focus:outline-black transition ${passwordMismatch ? 'border-red-300' : ''}`}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+              />
+              {passwordMismatch && (
+                <p className="text-xs text-red-500 mt-1">✕ Passwords do not match</p>
+              )}
+            </div>
           )}
-          <input
-            type="email"
-            placeholder="Email Address"
-            className="border p-3 text-sm focus:outline-black transition"
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            className="border p-3 text-sm focus:outline-black transition"
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-          <button disabled={loading} className="bg-black text-white p-3 text-xs font-bold uppercase tracking-widest hover:bg-gray-800 transition">
+
+          <button
+            disabled={loading || !!passwordMismatch}
+            className="bg-black text-white p-3 text-xs font-bold uppercase tracking-widest hover:bg-gray-800 transition disabled:opacity-50"
+          >
             {loading ? 'Processing...' : isSignUp ? 'Create Account' : 'Login'}
           </button>
         </form>
@@ -219,7 +302,7 @@ export default function Login() {
 
         <p className="text-center mt-4 text-xs text-gray-400">
           {isSignUp ? 'Already have an account?' : 'New client?'}{' '}
-          <button onClick={() => setIsSignUp(!isSignUp)} className="text-black underline font-bold">
+          <button onClick={handleToggleMode} className="text-black underline font-bold">
             {isSignUp ? 'Login' : 'Sign Up'}
           </button>
         </p>

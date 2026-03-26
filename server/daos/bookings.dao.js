@@ -24,7 +24,7 @@ async function getBookingById(id) {
 async function getStylistBookings(stylistId) {
   const { data, error } = await supabase
     .from('bookings')
-    .select(`*, services(name, base_price), profiles(full_name), guests(full_name)`)
+    .select(`*, services(name, base_price), profiles(full_name, email, phone_number), guests(full_name, email, phone_number)`)
     .eq('stylist_id', stylistId)
     .neq('status', 'cancelled')
     .order('start_time', { ascending: true });
