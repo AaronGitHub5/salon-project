@@ -37,9 +37,9 @@ export default function Login() {
     }
   }, []);
 
-  // Redirect once both user and role are resolved
+  // Redirect once both user and role are resolved (but not during password reset)
   useEffect(() => {
-    if (!user || !role) return;
+    if (!user || !role || isResetPassword) return;
     const appPath = reviewParam ? `/app?review=${reviewParam}` : '/app';
     if (role === 'admin') navigate('/admin', { replace: true });
     else if (role === 'stylist') navigate('/stylist', { replace: true });

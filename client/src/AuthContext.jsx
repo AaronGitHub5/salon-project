@@ -79,9 +79,6 @@ export function AuthProvider({ children }) {
           return;
         }
 
-        // Block rendering while fetching the new user's role to prevent
-        // briefly showing the wrong dashboard during account switches.
-        setLoading(true);
         setRole(null);
         setUser(session.user);
         setSession(session);
