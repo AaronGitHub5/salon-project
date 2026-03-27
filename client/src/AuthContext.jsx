@@ -80,6 +80,14 @@ export function AuthProvider({ children }) {
         }
 
         clearTimeout(fallbackTimer);
+
+        // TOKEN_REFRESHED just means the token was renewed — same user, same role.
+        // Only update the session silently; don't reset role or show spinner.
+        if (event === 'TOKEN_REFRESHED') {
+          setSession(session);
+          return;
+        }
+
         setUser(session.user);
         setSession(session);
         setRole(null);       // Clear role — will be fetched by the role effect
