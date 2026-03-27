@@ -38,8 +38,8 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [isRecoveryMode, setIsRecoveryMode] = useState(false);
   const recoveryRef = useRef(false);
-  // Track last auth event so the role effect can distinguish fresh login vs browser reopen
   const lastEventRef = useRef(null);
+  const currentUserIdRef = useRef(null);
 
   // 1) Auth listener — synchronous only, no async work here.
   //    Sets user/session state; role is fetched in a separate effect.
@@ -64,6 +64,7 @@ export function AuthProvider({ children }) {
         if (event === 'SIGNED_OUT' || !session) {
           clearTimeout(fallbackTimer);
           recoveryRef.current = false;
+          currentUserIdRef.current = null;
           setUser(null);
           setRole(null);
           setSession(null);
@@ -81,13 +82,15 @@ export function AuthProvider({ children }) {
 
         clearTimeout(fallbackTimer);
 
-        // TOKEN_REFRESHED just means the token was renewed — same user, same role.
-        // Only update the session silently; don't reset role or show spinner.
-        if (event === 'TOKEN_REFRESHED') {
+        // Same user — just update the session silently (token refresh, tab refocus, etc.)
+        // Don't reset role or show spinner.
+        if (session.user.id === currentUserIdRef.current) {
           setSession(session);
           return;
         }
 
+        // Different user (or first load) — full reset
+        currentUserIdRef.current = session.user.id;
         setUser(session.user);
         setSession(session);
         setRole(null);       // Clear role — will be fetched by the role effect
