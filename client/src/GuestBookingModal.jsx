@@ -38,7 +38,10 @@ export default function GuestBookingModal({ onClose, onConfirm }) {
       setIsLoadingSlots(true);
       setAvailableSlots([]);
       setSelectedTime('');
-      const dateStr = selectedDate.toISOString().split('T')[0];
+      const year = selectedDate.getFullYear();
+      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+      const day = String(selectedDate.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
       fetch(`${API_URL}/api/availability/${selectedStylist}/${dateStr}?serviceId=${serviceId}`)
         .then(res => res.json())
         .then(data => {

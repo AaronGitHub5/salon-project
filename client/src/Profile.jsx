@@ -8,6 +8,11 @@ import BookingModal from './BookingModal';
 const LOYALTY_GOAL = 10;
 const MILESTONES = [2, 4, 6, 8, 10];
 
+const profileStyles = `
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500&display=swap');
+  .font-display { font-family: 'Cormorant Garamond', serif !important; }
+`;
+
 function LoyaltyRing({ points, goal }) {
   const radius = 54;
   const circumference = 2 * Math.PI * radius;
@@ -15,21 +20,20 @@ function LoyaltyRing({ points, goal }) {
   const offset = circumference - progress * circumference;
   return (
     <svg width="140" height="140" viewBox="0 0 140 140">
-      <circle cx="70" cy="70" r={radius} fill="none" stroke="#e5e7eb" strokeWidth="10" />
-      <circle cx="70" cy="70" r={radius} fill="none" stroke="#111" strokeWidth="10"
+      <circle cx="70" cy="70" r={radius} fill="none" stroke="#E4E0D8" strokeWidth="10" />
+      <circle cx="70" cy="70" r={radius} fill="none" stroke="#B8975A" strokeWidth="10"
         strokeDasharray={circumference} strokeDashoffset={offset} strokeLinecap="round"
         transform="rotate(-90 70 70)" style={{ transition: 'stroke-dashoffset 0.6s ease' }} />
-      <text x="70" y="65" textAnchor="middle" style={{ fontSize: '22px', fontWeight: '700', fill: '#111' }}>{points}</text>
-      <text x="70" y="82" textAnchor="middle" style={{ fontSize: '9px', fill: '#9ca3af', letterSpacing: '2px' }}>VISITS</text>
+      <text x="70" y="65" textAnchor="middle" style={{ fontSize: '22px', fontWeight: '300', fill: '#1A1A18', fontFamily: 'Cormorant Garamond, serif' }}>{points}</text>
+      <text x="70" y="82" textAnchor="middle" style={{ fontSize: '9px', fill: '#B8975A', letterSpacing: '2px', textTransform: 'uppercase' }}>Visits</text>
     </svg>
   );
 }
 
-// Reusable field with label + success/error feedback
 function SettingsSection({ title, children }) {
   return (
-    <div className="border-b border-gray-100 pb-8 mb-8 last:border-0 last:mb-0 last:pb-0">
-      <h3 className="font-bold text-sm text-gray-800 mb-5 uppercase tracking-widest">{title}</h3>
+    <div className="border-b border-[#E4E0D8] pb-8 mb-8 last:border-0 last:mb-0 last:pb-0">
+      <p className="text-[0.62rem] tracking-[0.15em] uppercase mb-5" style={{ color: '#B8975A' }}>{title}</p>
       {children}
     </div>
   );
@@ -38,7 +42,7 @@ function SettingsSection({ title, children }) {
 function FeedbackMsg({ type, msg }) {
   if (!msg) return null;
   return (
-    <p className={`text-xs mt-2 font-medium ${type === 'success' ? 'text-green-600' : 'text-red-500'}`}>
+    <p className={`text-[0.78rem] mt-2 font-light ${type === 'success' ? 'text-green-600' : 'text-red-500'}`}>
       {type === 'success' ? '✓ ' : '✕ '}{msg}
     </p>
   );
@@ -48,32 +52,27 @@ export default function Profile() {
   const { user, role, session } = useAuth();
   const navigate = useNavigate();
 
-  // Role-aware tabs — admin/stylist only get settings
   const isCustomer = role === 'customer' || !role;
   const tabs = isCustomer ? ['appointments', 'loyalty', 'settings'] : ['settings'];
   const [activeTab, setActiveTab] = useState(isCustomer ? 'appointments' : 'settings');
+  const [showAllPast, setShowAllPast] = useState(false);
+  const [showAllVouchers, setShowAllVouchers] = useState(false);
 
-  // Appointments
   const [appointments, setAppointments] = useState([]);
   const [loadingAppts, setLoadingAppts] = useState(true);
   const [reschedulingBooking, setReschedulingBooking] = useState(null);
 
-  // Loyalty
   const [points, setPoints] = useState(0);
   const [voucherCode, setVoucherCode] = useState(null);
   const [redeeming, setRedeeming] = useState(false);
   const [vouchers, setVouchers] = useState([]);
   const [loadingVouchers, setLoadingVouchers] = useState(false);
 
-  // Settings — personal info
   const [fullName, setFullName] = useState(user?.user_metadata?.full_name || '');
   const [phone, setPhone] = useState('');
-  const [infoFeedback, setInfoFeedback] = useState(null); // { type, msg }
+  const [infoFeedback, setInfoFeedback] = useState(null);
   const [savingInfo, setSavingInfo] = useState(false);
 
-  // Settings — email change
-
-  // Settings — password change
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -83,11 +82,9 @@ export default function Profile() {
   const token = session?.access_token;
   const authHeader = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
 
-  // Fetch profile data on mount
   useEffect(() => {
     if (!user?.id) return;
 
-    // Fetch full profile (name + phone)
     supabase.from('profiles').select('full_name, phone_number, loyalty_points').eq('id', user.id).single()
       .then(({ data }) => {
         if (data) {
@@ -123,7 +120,6 @@ export default function Profile() {
     }
   }, [activeTab]);
 
-  // --- Handlers ---
   const handleCancel = async (bookingId) => {
     if (!confirm('Cancel this appointment?')) return;
     const res = await fetch(`${API_URL}/api/bookings/${bookingId}/cancel`, { method: 'PUT', headers: authHeader });
@@ -172,7 +168,6 @@ export default function Profile() {
     } catch { alert('Something went wrong.'); } finally { setRedeeming(false); }
   };
 
-  // Save personal info (name + phone) → profiles table
   const handleSaveInfo = async (e) => {
     e.preventDefault();
     setSavingInfo(true); setInfoFeedback(null);
@@ -187,7 +182,6 @@ export default function Profile() {
     finally { setSavingInfo(false); }
   };
 
-  // Change password — via server endpoint
   const handleChangePassword = async (e) => {
     e.preventDefault();
     if (newPassword !== confirmPassword) { setPwFeedback({ type: 'error', msg: 'New passwords do not match.' }); return; }
@@ -210,222 +204,314 @@ export default function Profile() {
   const remaining = Math.max(LOYALTY_GOAL - points, 0);
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6 font-sans">
-      <div className="max-w-4xl mx-auto">
+    <div className="min-h-screen bg-[#FAFAF8] text-[#1A1A18]">
+      <style>{profileStyles}</style>
+
+      {/* Nav */}
+      <nav className="fixed w-full bg-[#FAFAF8]/92 backdrop-blur-md border-b border-[#E4E0D8] z-40">
+        <div className="max-w-4xl mx-auto px-6 md:px-16 h-[72px] flex items-center justify-between">
+          <a href="/" className="font-display text-[1.3rem] font-medium tracking-wide text-[#1A1A18] no-underline">
+            Hair by <span style={{ color: '#B8975A' }}>Amnesia</span>
+          </a>
+          <button
+            onClick={() => navigate(role === 'admin' ? '/admin' : role === 'stylist' ? '/stylist' : '/app')}
+            className="text-[0.72rem] font-light tracking-[0.1em] uppercase text-[#7A7870] hover:text-[#1A1A18] transition-colors bg-transparent border-none cursor-pointer p-0"
+            style={{ borderBottom: '1px solid #E4E0D8' }}
+          >
+            Back
+          </button>
+        </div>
+      </nav>
+
+      <div className="max-w-4xl mx-auto px-6 md:px-16 pt-[100px] pb-16">
 
         {/* Header */}
-        <div className="flex justify-between items-end mb-8">
-          <div>
-            <p className="text-xs text-gray-400 uppercase tracking-widest mb-1">Hair By Amnesia</p>
-            <h1 className="text-3xl font-light uppercase tracking-widest text-gray-800">
-              Welcome back, {fullName?.split(' ')[0] || 'there'}
-            </h1>
-            <p className="text-sm text-gray-400 mt-1">{user?.email}</p>
-          </div>
-          <button onClick={() => navigate(role === 'admin' ? '/admin' : role === 'stylist' ? '/stylist' : '/app')}
-            className="text-sm underline hover:text-red-500">← Back</button>
+        <div className="mb-10">
+          <p className="text-[0.67rem] tracking-[0.2em] uppercase mb-2" style={{ color: '#B8975A' }}>Your Profile</p>
+          <h1 className="font-display font-light leading-tight text-[#1A1A18]" style={{ fontSize: 'clamp(1.8rem,3.5vw,2.8rem)' }}>
+            Welcome back, {fullName?.split(' ')[0] || 'there'}.
+          </h1>
+          <p className="text-[0.82rem] font-light text-[#7A7870] mt-2">{user?.email}</p>
         </div>
 
-        {/* Tabs — only show relevant tabs per role */}
-        <div className="flex gap-6 border-b border-gray-200 mb-8">
+        {/* Tabs */}
+        <div className="flex gap-8 border-b border-[#E4E0D8] mb-10">
           {tabs.map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)}
-              className={`pb-3 text-sm font-bold uppercase tracking-widest transition ${activeTab === tab ? 'border-b-2 border-black text-black' : 'text-gray-400'}`}>
+              className={`pb-3 text-[0.72rem] tracking-[0.12em] uppercase transition-colors bg-transparent border-none cursor-pointer p-0 ${
+                activeTab === tab
+                  ? 'font-medium text-[#1A1A18]'
+                  : 'font-light text-[#7A7870] hover:text-[#1A1A18]'
+              }`}
+              style={activeTab === tab ? { borderBottom: '2px solid #B8975A', marginBottom: '-1px' } : {}}
+            >
               {tab}
             </button>
           ))}
         </div>
 
-        {/* TAB: APPOINTMENTS */}
-        {activeTab === 'appointments' && (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 min-h-[400px]">
-            {loadingAppts ? (
-              <div className="p-10 text-center text-gray-400 animate-pulse">Loading...</div>
-            ) : appointments.length === 0 ? (
-              <div className="p-16 text-center text-gray-400">No bookings found.</div>
-            ) : (
-              <div className="divide-y divide-gray-100">
-                {appointments.map(appt => {
-                  const start = new Date(appt.start_time);
-                  const isPast = new Date() > start || appt.status === 'completed';
-                  return (
-                    <div key={appt.id} className="p-6 flex justify-between items-center hover:bg-gray-50 transition">
-                      <div className="flex items-center gap-6">
-                        <div className="text-right w-16">
-                          <p className="text-lg font-bold font-mono">{start.getDate()}</p>
-                          <p className="text-[10px] text-gray-400 uppercase">{start.toLocaleString('en-GB', { month: 'short' })}</p>
-                          <p className="text-[10px] text-gray-400">{start.getFullYear()}</p>
-                        </div>
-                        <div>
-                          <h3 className="font-bold text-gray-800">{appt.services?.name}</h3>
-                          <p className="text-sm text-gray-500">with {appt.stylists?.name} · £{appt.services?.base_price}</p>
-                          <p className="text-xs font-mono mt-1 text-gray-400">{start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
-                        </div>
-                      </div>
-                      <div className="flex gap-2 items-center">
-                        {isPast ? (
-                          <span className="bg-gray-100 text-gray-500 text-[10px] font-bold px-3 py-1 rounded uppercase">Completed</span>
-                        ) : (
-                          <>
-                            <button onClick={() => setReschedulingBooking(appt)} className="text-blue-500 border border-blue-200 bg-white hover:bg-blue-50 px-4 py-2 rounded text-xs font-bold uppercase">Reschedule</button>
-                            <button onClick={() => handleCancel(appt.id)} className="text-red-500 border border-red-200 bg-white hover:bg-red-50 px-4 py-2 rounded text-xs font-bold uppercase">Cancel</button>
-                          </>
-                        )}
-                        <button onClick={() => handleExportIcs(appt.id)} title="Export to Calendar" className="text-gray-500 border border-gray-200 bg-white hover:bg-gray-50 px-3 py-2 rounded text-xs font-bold uppercase">📅</button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* TAB: LOYALTY */}
-        {activeTab === 'loyalty' && (
-          <div className="grid md:grid-cols-2 gap-8 grid-flow-row">
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 flex flex-col items-center">
-              <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-6">Loyalty Card</h2>
-              <LoyaltyRing points={points} goal={LOYALTY_GOAL} />
-              <p className="text-xs text-gray-400 uppercase tracking-widest mt-4">{points} of {LOYALTY_GOAL} visits</p>
-              <div className="flex gap-3 mt-6">
-                {MILESTONES.map(milestone => (
-                  <div key={milestone} className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 transition ${points >= milestone ? 'bg-black border-black text-white' : 'bg-white border-gray-200 text-gray-300'}`}>✓</div>
-                ))}
-              </div>
-              {voucherCode && (
-                <div className="mt-6 w-full bg-green-50 border border-green-200 rounded p-4 text-center">
-                  <p className="text-xs text-green-600 uppercase tracking-widest font-bold mb-1">Your Voucher Code</p>
-                  <p className="text-2xl font-mono font-bold text-green-700">{voucherCode}</p>
-                  <p className="text-xs text-green-500 mt-1">Show this at your next appointment</p>
+        {/* TAB: APPOINTMENTS (upcoming only) */}
+        {activeTab === 'appointments' && (() => {
+          const upcoming = appointments.filter(a => new Date() <= new Date(a.start_time) && a.status !== 'completed');
+          return (
+            <div className="bg-white border border-[#E4E0D8] min-h-[400px]">
+              {loadingAppts ? (
+                <div className="p-10 text-center text-[#7A7870] font-light animate-pulse">Loading...</div>
+              ) : upcoming.length === 0 ? (
+                <div className="p-16 text-center">
+                  <p className="font-display text-[1.2rem] font-light text-[#7A7870]">No upcoming appointments.</p>
                 </div>
-              )}
-              <button onClick={handleRedeem} disabled={!canRedeem || redeeming}
-                className={`mt-6 w-full py-3 text-xs font-bold uppercase tracking-widest rounded transition ${canRedeem ? 'bg-black text-white hover:bg-gray-800' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}>
-                {redeeming ? 'Redeeming...' : 'Redeem for Voucher'}
-              </button>
-              <p className="text-[10px] text-gray-400 mt-2">
-                {canRedeem ? 'You have enough visits to redeem a voucher!' : `Unlocks at ${LOYALTY_GOAL} visits · ${remaining} remaining`}
-              </p>
-            </div>
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 md:col-span-2">
-              <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-6">My Vouchers</h2>
-              {loadingVouchers ? (
-                <div className="text-center text-gray-400 animate-pulse py-4">Loading...</div>
-              ) : vouchers.length === 0 ? (
-                <div className="text-center text-gray-400 py-6 text-sm">No vouchers yet. Complete 10 visits to earn one.</div>
               ) : (
-                <div className="grid md:grid-cols-3 gap-4">
-                  {vouchers.map(v => (
-                    <div key={v.id} className={`border rounded-lg p-4 ${v.used ? 'border-gray-100 bg-gray-50' : 'border-black bg-white'}`}>
-                      <div className="flex justify-between items-start mb-2">
-                        <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded ${v.used ? 'bg-gray-200 text-gray-400' : 'bg-black text-white'}`}>{v.used ? 'Used' : `${v.discount}% Off`}</span>
-                        <span className="text-[10px] text-gray-400">{new Date(v.created_at).toLocaleDateString('en-GB')}</span>
-                      </div>
-                      <p className={`font-mono font-bold text-lg mt-2 ${v.used ? 'text-gray-400 line-through' : 'text-black'}`}>{v.code}</p>
-                      {!v.used && <p className="text-[10px] text-gray-400 mt-1">Show this at your appointment</p>}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-6">Past Appointments</h2>
-              {appointments.filter(a => new Date() > new Date(a.start_time) || a.status === 'completed').length === 0 ? (
-                <div className="text-center text-gray-400 py-8 text-sm">No past appointments yet.</div>
-              ) : (
-                <div className="space-y-4">
-                  {appointments.filter(a => new Date() > new Date(a.start_time) || a.status === 'completed').slice(0, 6).map(appt => {
+                <div className="divide-y divide-[#E4E0D8]">
+                  {upcoming.map(appt => {
                     const start = new Date(appt.start_time);
+                    const isPending = appt.status === 'pending';
                     return (
-                      <div key={appt.id} className="flex justify-between items-center py-3 border-b border-gray-50 last:border-0">
-                        <div className="flex items-center gap-4">
-                          <div className="text-right w-10">
-                            <p className="text-sm font-bold">{start.getDate()}</p>
-                            <p className="text-[10px] text-gray-400 uppercase">{start.toLocaleString('en-GB', { month: 'short' })}</p>
+                      <div key={appt.id} className="p-6 flex justify-between items-center hover:bg-[#FAFAF8] transition-colors duration-200">
+                        <div className="flex items-center gap-6">
+                          <div className="text-center w-14">
+                            <p className="text-[1.6rem] font-light text-[#1A1A18] leading-none">{start.getDate()}</p>
+                            <p className="text-[0.62rem] tracking-[0.1em] uppercase mt-0.5" style={{ color: '#B8975A' }}>
+                              {start.toLocaleString('en-GB', { month: 'short' })}
+                            </p>
+                            <p className="text-[0.62rem] text-[#7A7870]">{start.getFullYear()}</p>
                           </div>
                           <div>
-                            <p className="text-sm font-bold text-gray-800">{appt.services?.name}</p>
-                            <p className="text-xs text-gray-400">with {appt.stylists?.name}</p>
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-display text-[1.05rem] font-medium text-[#1A1A18]">{appt.services?.name}</h3>
+                              {isPending && (
+                                <span className="text-[0.58rem] tracking-[0.1em] uppercase px-2 py-0.5" style={{ color: '#B8975A', border: '1px solid #B8975A' }}>
+                                  Awaiting Approval
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[0.78rem] font-light text-[#7A7870]">with {appt.stylists?.name} · £{appt.services?.base_price}</p>
+                            <p className="text-[0.72rem] font-light text-[#B4A894] mt-0.5">{start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                           </div>
                         </div>
-                        <button onClick={() => setReschedulingBooking(appt)} className="text-[10px] font-bold uppercase tracking-widest border border-gray-200 px-3 py-1.5 rounded hover:bg-gray-50 transition">Rebook</button>
+                        <div className="flex gap-2 items-center">
+                          {!isPending && (
+                            <button onClick={() => setReschedulingBooking(appt)}
+                              className="text-[0.68rem] tracking-[0.08em] uppercase font-light text-[#1A1A18] border border-[#E4E0D8] bg-white hover:bg-[#FAFAF8] px-4 py-2 cursor-pointer transition-colors duration-200">
+                              Reschedule
+                            </button>
+                          )}
+                          <button onClick={() => handleCancel(appt.id)}
+                            className="text-[0.68rem] tracking-[0.08em] uppercase font-light text-red-600 border border-red-200 bg-white hover:bg-red-50 px-4 py-2 cursor-pointer transition-colors duration-200">
+                            Cancel
+                          </button>
+                          {!isPending && (
+                            <button onClick={() => handleExportIcs(appt.id)} title="Export to Calendar"
+                              className="text-[0.78rem] text-[#7A7870] border border-[#E4E0D8] bg-white hover:bg-[#FAFAF8] px-3 py-2 cursor-pointer transition-colors duration-200">
+                              📅
+                            </button>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
                 </div>
               )}
             </div>
+          );
+        })()}
+
+        {/* TAB: LOYALTY */}
+        {activeTab === 'loyalty' && (
+          <div className="grid md:grid-cols-2 gap-8 grid-flow-row">
+            <div className="bg-white border border-[#E4E0D8] p-8 flex flex-col items-center">
+              <p className="text-[0.62rem] tracking-[0.15em] uppercase mb-6" style={{ color: '#B8975A' }}>Loyalty Card</p>
+              <LoyaltyRing points={points} goal={LOYALTY_GOAL} />
+              <p className="text-[0.75rem] font-light text-[#7A7870] mt-4">{points} of {LOYALTY_GOAL} visits</p>
+              <div className="flex gap-2 mt-6">
+                {MILESTONES.map(milestone => (
+                  <div key={milestone}
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-[0.6rem] transition-colors duration-200"
+                    style={{
+                      border: `1px solid ${points >= milestone ? '#B8975A' : '#E4E0D8'}`,
+                      background: points >= milestone ? 'rgba(184,151,90,0.15)' : 'transparent',
+                      color: points >= milestone ? '#D4B07A' : '#E4E0D8',
+                    }}>
+                    {points >= milestone ? '✓' : ''}
+                  </div>
+                ))}
+              </div>
+              {voucherCode && (
+                <div className="mt-6 w-full bg-[#FAFAF8] border border-[#B8975A] p-4 text-center">
+                  <p className="text-[0.62rem] tracking-[0.15em] uppercase mb-1" style={{ color: '#B8975A' }}>Your Voucher Code</p>
+                  <p className="font-display text-[1.8rem] font-light" style={{ color: '#B8975A' }}>{voucherCode}</p>
+                  <p className="text-[0.72rem] font-light text-[#7A7870] mt-1">Show this at your next appointment</p>
+                </div>
+              )}
+              <button onClick={handleRedeem} disabled={!canRedeem || redeeming}
+                className={`mt-6 w-full py-3.5 text-[0.72rem] font-medium tracking-[0.12em] uppercase border-none cursor-pointer transition-colors duration-200 ${
+                  canRedeem
+                    ? 'bg-[#1A1A18] text-white hover:bg-[#B8975A]'
+                    : 'bg-[#E4E0D8] text-[#B4A894] cursor-not-allowed'
+                }`}>
+                {redeeming ? 'Redeeming...' : 'Redeem for Voucher'}
+              </button>
+              <p className="text-[0.72rem] font-light text-[#7A7870] mt-2">
+                {canRedeem ? 'You have enough visits to redeem a voucher!' : `Unlocks at ${LOYALTY_GOAL} visits · ${remaining} remaining`}
+              </p>
+            </div>
+
+            <div className="bg-white border border-[#E4E0D8] p-6">
+              <p className="text-[0.62rem] tracking-[0.15em] uppercase mb-6" style={{ color: '#B8975A' }}>Past Appointments</p>
+              {(() => {
+                const pastAppts = appointments.filter(a => new Date() > new Date(a.start_time) || a.status === 'completed');
+                if (pastAppts.length === 0) return (
+                  <div className="text-center text-[#7A7870] font-light py-8 text-[0.85rem]">No past appointments yet.</div>
+                );
+                const visible = showAllPast ? pastAppts : pastAppts.slice(0, 6);
+                return (
+                  <>
+                    <div className="space-y-0">
+                      {visible.map(appt => {
+                        const start = new Date(appt.start_time);
+                        return (
+                          <div key={appt.id} className="flex justify-between items-center py-4 border-b border-[#E4E0D8] last:border-0">
+                            <div className="flex items-center gap-4">
+                              <div className="text-center w-10">
+                                <p className="text-[1.1rem] font-light text-[#1A1A18] leading-none">{start.getDate()}</p>
+                                <p className="text-[0.58rem] tracking-[0.1em] uppercase" style={{ color: '#B8975A' }}>
+                                  {start.toLocaleString('en-GB', { month: 'short' })}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="font-display text-[0.95rem] font-medium text-[#1A1A18]">{appt.services?.name}</p>
+                                <p className="text-[0.72rem] font-light text-[#7A7870]">with {appt.stylists?.name}</p>
+                              </div>
+                            </div>
+                            <button onClick={() => setReschedulingBooking(appt)}
+                              className="text-[0.62rem] tracking-[0.1em] uppercase font-light text-[#1A1A18] border border-[#E4E0D8] bg-white hover:bg-[#FAFAF8] px-3 py-1.5 cursor-pointer transition-colors duration-200">
+                              Rebook
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {pastAppts.length > 6 && (
+                      <button
+                        onClick={() => setShowAllPast(prev => !prev)}
+                        className="w-full mt-4 text-[0.72rem] font-light tracking-[0.1em] uppercase text-[#7A7870] hover:text-[#1A1A18] bg-transparent border-none cursor-pointer transition-colors p-0"
+                      >
+                        {showAllPast ? 'Show less' : `Show all (${pastAppts.length})`}
+                      </button>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
+
+            <div className="bg-white border border-[#E4E0D8] p-6 md:col-span-2">
+              <p className="text-[0.62rem] tracking-[0.15em] uppercase mb-6" style={{ color: '#B8975A' }}>My Vouchers</p>
+              {loadingVouchers ? (
+                <div className="text-center text-[#7A7870] font-light animate-pulse py-4">Loading...</div>
+              ) : vouchers.length === 0 ? (
+                <div className="text-center text-[#7A7870] font-light py-6 text-[0.85rem]">No vouchers yet. Complete 10 visits to earn one.</div>
+              ) : (() => {
+                const visible = showAllVouchers ? vouchers : vouchers.slice(0, 3);
+                return (
+                  <>
+                    <div className="grid md:grid-cols-3 gap-4">
+                      {visible.map(v => (
+                        <div key={v.id} className={`border p-4 ${v.used ? 'border-[#E4E0D8] bg-[#FAFAF8]' : 'border-[#B8975A] bg-white'}`}>
+                          <div className="flex justify-between items-start mb-2">
+                            <span className={`text-[0.62rem] tracking-[0.1em] uppercase px-2 py-0.5 ${
+                              v.used ? 'bg-[#E4E0D8] text-[#7A7870]' : 'bg-[#1A1A18] text-white'
+                            }`}>
+                              {v.used ? 'Used' : `${v.discount}% Off`}
+                            </span>
+                            <span className="text-[0.68rem] font-light text-[#B4A894]">{new Date(v.created_at).toLocaleDateString('en-GB')}</span>
+                          </div>
+                          <p className={`font-display text-[1.4rem] font-light mt-2 ${v.used ? 'text-[#B4A894] line-through' : 'text-[#1A1A18]'}`}>{v.code}</p>
+                          {!v.used && <p className="text-[0.68rem] font-light text-[#7A7870] mt-1">Show this at your appointment</p>}
+                        </div>
+                      ))}
+                    </div>
+                    {vouchers.length > 3 && (
+                      <button
+                        onClick={() => setShowAllVouchers(prev => !prev)}
+                        className="w-full mt-4 text-[0.72rem] font-light tracking-[0.1em] uppercase text-[#7A7870] hover:text-[#1A1A18] bg-transparent border-none cursor-pointer transition-colors p-0"
+                      >
+                        {showAllVouchers ? 'Show less' : `Show all (${vouchers.length})`}
+                      </button>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
+
           </div>
         )}
 
         {/* TAB: SETTINGS */}
         {activeTab === 'settings' && (
-          <div className="bg-white p-8 rounded-lg shadow-sm border border-gray-200 space-y-0">
+          <div className="bg-white border border-[#E4E0D8] p-8 md:p-10 space-y-0">
 
-            {/* Personal Information */}
             <SettingsSection title="Personal Information">
               <form onSubmit={handleSaveInfo} className="space-y-4 max-w-md">
                 <div>
-                  <label className="text-xs text-gray-500 uppercase tracking-widest block mb-1">Full Name</label>
+                  <label className="text-[0.62rem] tracking-[0.15em] uppercase block mb-1.5" style={{ color: '#B8975A' }}>Full Name</label>
                   <input type="text" value={fullName} onChange={e => setFullName(e.target.value)}
                     placeholder="Your full name" required
-                    className="w-full border border-gray-300 p-3 text-sm bg-gray-50 focus:outline-black rounded" />
+                    className="w-full border border-[#E4E0D8] bg-[#FAFAF8] px-4 py-3.5 text-[0.85rem] font-light text-[#1A1A18] placeholder-[#B4A894] focus:outline-none focus:border-[#B8975A] transition-colors" />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 uppercase tracking-widest block mb-1">Phone Number</label>
+                  <label className="text-[0.62rem] tracking-[0.15em] uppercase block mb-1.5" style={{ color: '#B8975A' }}>Phone Number</label>
                   <input type="tel" value={phone} onChange={e => setPhone(e.target.value)}
                     placeholder="e.g. 07700 900000"
-                    className="w-full border border-gray-300 p-3 text-sm bg-gray-50 focus:outline-black rounded" />
+                    className="w-full border border-[#E4E0D8] bg-[#FAFAF8] px-4 py-3.5 text-[0.85rem] font-light text-[#1A1A18] placeholder-[#B4A894] focus:outline-none focus:border-[#B8975A] transition-colors" />
                 </div>
-                <button disabled={savingInfo} className="bg-black text-white px-6 py-3 text-xs font-bold uppercase rounded hover:bg-gray-800 disabled:opacity-50 transition">
+                <button disabled={savingInfo}
+                  className="bg-[#1A1A18] text-white px-6 py-3.5 text-[0.72rem] font-medium tracking-[0.12em] uppercase hover:bg-[#B8975A] transition-colors duration-200 border-none cursor-pointer disabled:opacity-50">
                   {savingInfo ? 'Saving...' : 'Save Changes'}
                 </button>
                 <FeedbackMsg type={infoFeedback?.type} msg={infoFeedback?.msg} />
               </form>
             </SettingsSection>
 
-            {/* Change Password */}
             <SettingsSection title="Change Password">
               <form onSubmit={handleChangePassword} className="space-y-4 max-w-md">
                 <div>
-                  <label className="text-xs text-gray-500 uppercase tracking-widest block mb-1">Current Password</label>
+                  <label className="text-[0.62rem] tracking-[0.15em] uppercase block mb-1.5" style={{ color: '#B8975A' }}>Current Password</label>
                   <input type="password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)}
                     placeholder="Current password" required
-                    className="w-full border border-gray-300 p-3 text-sm bg-gray-50 focus:outline-black rounded" />
+                    className="w-full border border-[#E4E0D8] bg-[#FAFAF8] px-4 py-3.5 text-[0.85rem] font-light text-[#1A1A18] placeholder-[#B4A894] focus:outline-none focus:border-[#B8975A] transition-colors" />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 uppercase tracking-widest block mb-1">New Password</label>
+                  <label className="text-[0.62rem] tracking-[0.15em] uppercase block mb-1.5" style={{ color: '#B8975A' }}>New Password</label>
                   <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)}
                     placeholder="Min. 6 characters" required minLength={6}
-                    className="w-full border border-gray-300 p-3 text-sm bg-gray-50 focus:outline-black rounded" />
+                    className="w-full border border-[#E4E0D8] bg-[#FAFAF8] px-4 py-3.5 text-[0.85rem] font-light text-[#1A1A18] placeholder-[#B4A894] focus:outline-none focus:border-[#B8975A] transition-colors" />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 uppercase tracking-widest block mb-1">Confirm New Password</label>
+                  <label className="text-[0.62rem] tracking-[0.15em] uppercase block mb-1.5" style={{ color: '#B8975A' }}>Confirm New Password</label>
                   <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)}
                     placeholder="Repeat new password" required
-                    className={`w-full border p-3 text-sm bg-gray-50 focus:outline-black rounded ${confirmPassword && confirmPassword !== newPassword ? 'border-red-300' : 'border-gray-300'}`} />
+                    className={`w-full border bg-[#FAFAF8] px-4 py-3.5 text-[0.85rem] font-light text-[#1A1A18] placeholder-[#B4A894] focus:outline-none focus:border-[#B8975A] transition-colors ${
+                      confirmPassword && confirmPassword !== newPassword ? 'border-red-300' : 'border-[#E4E0D8]'
+                    }`} />
                   {confirmPassword && confirmPassword !== newPassword && (
-                    <p className="text-xs text-red-500 mt-1">Passwords do not match</p>
+                    <p className="text-[0.75rem] text-red-500 mt-1.5 font-light">Passwords do not match</p>
                   )}
                 </div>
-                <button disabled={savingPw} className="bg-black text-white px-6 py-3 text-xs font-bold uppercase rounded hover:bg-gray-800 disabled:opacity-50 transition">
+                <button disabled={savingPw}
+                  className="bg-[#1A1A18] text-white px-6 py-3.5 text-[0.72rem] font-medium tracking-[0.12em] uppercase hover:bg-[#B8975A] transition-colors duration-200 border-none cursor-pointer disabled:opacity-50">
                   {savingPw ? 'Updating...' : 'Update Password'}
                 </button>
                 <FeedbackMsg type={pwFeedback?.type} msg={pwFeedback?.msg} />
               </form>
             </SettingsSection>
 
-            {/* Account */}
             <SettingsSection title="Account">
-              {/* Danger Zone */}
-              <div className="border border-red-100 rounded-lg p-4 bg-red-50">
-                <p className="text-xs font-bold uppercase tracking-widest text-red-600 mb-1">Danger Zone</p>
-                <p className="text-xs text-red-400 mb-3">To delete your account please contact us directly. We will remove all your data within 48 hours.</p>
-                <a href="tel:02084767326" className="text-xs font-bold text-red-600 underline hover:text-red-800">
-                  Call 020 8476 7326
+              <p className="text-[0.78rem] font-light text-[#7A7870] leading-relaxed">
+                To delete your account please contact us directly. We will remove all your data within 48 hours.{' '}
+                <a href="tel:02084767326" className="text-[#1A1A18]" style={{ borderBottom: '1px solid #E4E0D8' }}>
+                  020 8476 7326
                 </a>
-              </div>
+              </p>
             </SettingsSection>
 
           </div>

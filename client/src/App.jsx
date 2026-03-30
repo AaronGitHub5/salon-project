@@ -7,20 +7,30 @@ import AdminDashboard from './AdminDashboard';
 import Profile from './Profile';
 import StylistSchedule from './StylistSchedule';
 import ResetPassword from './ResetPassword';
-// import LandingPage from './LandingPage'; // tomorrow
+import LandingPage from './LandingPage';
 
+// Renders landing page for guests, redirects logged-in users to their dashboard
 function RootRedirect() {
   const { user, role } = useAuth();
   const [searchParams] = useSearchParams();
   const reviewParam = searchParams.get('review');
 
-  if (!user) {
-    // Preserve ?review= param so Login can forward it after auth
-    const loginPath = reviewParam ? `/login?review=${reviewParam}` : '/login';
-    return <Navigate to={loginPath} replace />;
-  }
+  if (!user) return <LandingPage />;
 
-  // Carry ?review= through to /app if present
+  const appPath = reviewParam ? `/app?review=${reviewParam}` : '/app';
+  if (role === 'admin') return <Navigate to="/admin" replace />;
+  if (role === 'stylist') return <Navigate to="/stylist" replace />;
+  return <Navigate to={appPath} replace />;
+}
+
+// Renders login for guests, redirects logged-in users to their dashboard
+function LoginRedirect() {
+  const { user, role } = useAuth();
+  const [searchParams] = useSearchParams();
+  const reviewParam = searchParams.get('review');
+
+  if (!user) return <Login />;
+
   const appPath = reviewParam ? `/app?review=${reviewParam}` : '/app';
   if (role === 'admin') return <Navigate to="/admin" replace />;
   if (role === 'stylist') return <Navigate to="/stylist" replace />;
@@ -32,7 +42,7 @@ export default function App() {
     <Routes>
       {/* Public */}
       <Route path="/" element={<RootRedirect />} />
-      <Route path="/login" element={<Login />} />
+      <Route path="/login" element={<LoginRedirect />} />
       <Route path="/reset-password" element={<ResetPassword />} />
 
       {/* Customer */}

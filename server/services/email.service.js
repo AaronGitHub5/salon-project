@@ -2,18 +2,62 @@ const { Resend } = require('resend');
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-const EMAIL_FOOTER = `
-  <div style="margin-top:32px;padding-top:16px;border-top:1px solid #eee;font-size:11px;color:#999;text-align:center;">
-    <p style="margin:0 0 4px;">This is an automated email — please do not reply to this message.</p>
-    <p style="margin:0 0 4px;">If you have any questions, please visit 
-      <a href="https://hairbyamnesia.co.uk" style="color:#111;">hairbyamnesia.co.uk</a> 
-      or call us on <strong style="color:#111;">020 8476 7326</strong>.
-    </p>
-    <p style="margin:8px 0 0;color:#bbb;">Hair By Amnesia &copy; ${new Date().getFullYear()}</p>
+const EMAIL_HEADER = `
+  <div style="background:#1A1A18;padding:24px 32px;">
+    <span style="font-family:'Cormorant Garamond',Georgia,serif;font-size:1.3rem;color:#fff;font-weight:500;letter-spacing:0.02em;">
+      Hair by <span style="color:#B8975A;">Amnesia</span>
+    </span>
   </div>
 `;
 
+const EMAIL_FOOTER = `
+  <div style="border-top:1px solid #E4E0D8;padding:20px 32px;">
+    <p style="margin:0 0 4px;font-size:0.72rem;color:#B4A894;letter-spacing:0.05em;">
+      This is an automated email — please do not reply.
+    </p>
+    <p style="margin:0 0 4px;font-size:0.72rem;color:#B4A894;">
+      Questions? Visit <a href="https://hairbyamnesia.co.uk" style="color:#1A1A18;text-decoration:none;border-bottom:1px solid #E4E0D8;">hairbyamnesia.co.uk</a>
+      or call <strong style="color:#1A1A18;">020 8476 7326</strong>
+    </p>
+    <p style="margin:8px 0 0;font-size:0.67rem;color:#B4A894;letter-spacing:0.1em;">
+      Hair by Amnesia &middot; 265 High Street Harlington, Hayes, UB3 5DF
+    </p>
+  </div>
+`;
 
+function emailWrapper(content) {
+  return `
+    <div style="font-family:'DM Sans','Helvetica Neue',Arial,sans-serif;max-width:600px;margin:0 auto;background:#FAFAF8;">
+      ${EMAIL_HEADER}
+      <div style="padding:32px;">
+        ${content}
+      </div>
+      ${EMAIL_FOOTER}
+    </div>
+  `;
+}
+
+function tableRow(label, value) {
+  return `<tr>
+    <td style="padding:10px 12px;border-bottom:1px solid #E4E0D8;font-size:0.72rem;text-transform:uppercase;letter-spacing:0.1em;color:#B8975A;width:120px;">${label}</td>
+    <td style="padding:10px 12px;border-bottom:1px solid #E4E0D8;font-size:0.88rem;color:#1A1A18;font-weight:300;">${value}</td>
+  </tr>`;
+}
+
+function detailsTable(rows) {
+  return `<table style="width:100%;border-collapse:collapse;margin:20px 0;">${rows.join('')}</table>`;
+}
+
+function ctaButton(text, href) {
+  return `
+    <div style="text-align:center;margin:28px 0;">
+      <a href="${href}"
+         style="display:inline-block;background:#1A1A18;color:#fff;padding:14px 28px;text-decoration:none;font-size:0.72rem;font-weight:500;letter-spacing:0.12em;text-transform:uppercase;">
+        ${text}
+      </a>
+    </div>
+  `;
+}
 
 async function initMail() {
   if (!process.env.RESEND_API_KEY) {
@@ -39,149 +83,170 @@ async function sendEmail(to, subject, html) {
 }
 
 function bookingConfirmationTemplate({ fullName, serviceName, stylistName, startTime, price }) {
-  return `
-    <div style="font-family:sans-serif;max-width:600px;margin:0 auto;">
-      <h2 style="background:#111;color:#fff;padding:20px;">Hair By Amnesia</h2>
-      <div style="padding:24px;">
-        <p>Hi ${fullName},</p>
-        <p>Your appointment is confirmed!</p>
-        <table style="width:100%;border-collapse:collapse;">
-          <tr><td style="padding:8px;border:1px solid #eee;"><strong>Service</strong></td><td style="padding:8px;border:1px solid #eee;">${serviceName}</td></tr>
-          <tr><td style="padding:8px;border:1px solid #eee;"><strong>Stylist</strong></td><td style="padding:8px;border:1px solid #eee;">${stylistName}</td></tr>
-          <tr><td style="padding:8px;border:1px solid #eee;"><strong>Date & Time</strong></td><td style="padding:8px;border:1px solid #eee;">${new Date(startTime).toLocaleString('en-GB')}</td></tr>
-          <tr><td style="padding:8px;border:1px solid #eee;"><strong>Price</strong></td><td style="padding:8px;border:1px solid #eee;">£${price}</td></tr>
-        </table>
-        <p style="margin-top:20px;color:#666;">We look forward to seeing you!</p>
-        <p style="margin-top:16px;font-size:13px;color:#666;">
-          Need to cancel or reschedule? 
-          <a href="https://hairbyamnesia.co.uk" style="color:#111;font-weight:bold;">Visit your profile</a>
-        </p>
-      </div>
-    
-    ${EMAIL_FOOTER}
-    </div>
-  `;
+  const priceRow = price ? tableRow('Price', `£${price}`) : '';
+  return emailWrapper(`
+    <p style="font-size:0.62rem;text-transform:uppercase;letter-spacing:0.15em;color:#B8975A;margin:0 0 4px;">Booking Confirmed</p>
+    <h2 style="font-family:'Cormorant Garamond',Georgia,serif;font-size:1.6rem;font-weight:300;color:#1A1A18;margin:0 0 16px;">You're all set, ${fullName}.</h2>
+    <p style="font-size:0.88rem;font-weight:300;color:#7A7870;line-height:1.6;margin-bottom:8px;">
+      Your appointment is confirmed. Here are the details:
+    </p>
+    ${detailsTable([
+      tableRow('Service', serviceName),
+      tableRow('Stylist', stylistName),
+      tableRow('Date &amp; Time', new Date(startTime).toLocaleString('en-GB')),
+      priceRow,
+    ].filter(Boolean))}
+    <p style="font-size:0.85rem;font-weight:300;color:#7A7870;line-height:1.6;">We look forward to seeing you!</p>
+    <p style="font-size:0.78rem;font-weight:300;color:#B4A894;margin-top:16px;">
+      Need to cancel or reschedule?
+      <a href="https://hairbyamnesia.co.uk" style="color:#1A1A18;text-decoration:none;border-bottom:1px solid #E4E0D8;">Visit your profile</a>
+    </p>
+  `);
+}
+
+function bookingPendingTemplate({ fullName, serviceName, stylistName, startTime, price }) {
+  return emailWrapper(`
+    <p style="font-size:0.62rem;text-transform:uppercase;letter-spacing:0.15em;color:#B8975A;margin:0 0 4px;">Booking Request Received</p>
+    <h2 style="font-family:'Cormorant Garamond',Georgia,serif;font-size:1.6rem;font-weight:300;color:#1A1A18;margin:0 0 16px;">We've received your request, ${fullName}.</h2>
+    <p style="font-size:0.88rem;font-weight:300;color:#7A7870;line-height:1.6;margin-bottom:8px;">
+      Your appointment request is awaiting confirmation from your stylist. You'll receive another email once it's approved.
+    </p>
+    ${detailsTable([
+      tableRow('Service', serviceName),
+      tableRow('Stylist', stylistName),
+      tableRow('Requested Time', new Date(startTime).toLocaleString('en-GB')),
+      tableRow('Price', `£${price}`),
+      tableRow('Status', 'Pending Approval'),
+    ])}
+    <p style="font-size:0.85rem;font-weight:300;color:#7A7870;line-height:1.6;">
+      We'll be in touch shortly.
+    </p>
+  `);
+}
+
+function bookingRejectionTemplate({ fullName, serviceName, stylistName, startTime }) {
+  return emailWrapper(`
+    <p style="font-size:0.62rem;text-transform:uppercase;letter-spacing:0.15em;color:#B8975A;margin:0 0 4px;">Booking Request</p>
+    <h2 style="font-family:'Cormorant Garamond',Georgia,serif;font-size:1.6rem;font-weight:300;color:#1A1A18;margin:0 0 16px;">We're unable to confirm your appointment.</h2>
+    <p style="font-size:0.88rem;font-weight:300;color:#7A7870;line-height:1.6;margin-bottom:8px;">
+      Hi ${fullName}, unfortunately your booking request could not be approved at this time.
+    </p>
+    ${detailsTable([
+      tableRow('Service', serviceName),
+      tableRow('Stylist', stylistName),
+      tableRow('Requested Time', new Date(startTime).toLocaleString('en-GB')),
+    ])}
+    <p style="font-size:0.85rem;font-weight:300;color:#7A7870;line-height:1.6;">
+  We hope to find a time that works for you. Browse availability and book whenever suits you best.
+    </p>
+    ${ctaButton('Book Again', 'https://hairbyamnesia.co.uk')}
+  `);
 }
 
 function cancellationTemplate({ serviceName }) {
-  return `
-    <div style="font-family:sans-serif;max-width:600px;margin:0 auto;">
-      <h2 style="background:#111;color:#fff;padding:20px;">Hair By Amnesia</h2>
-      <p>Your <strong>${serviceName}</strong> appointment has been cancelled.</p>
-      <p>If you did not request this or have any questions, please contact us.</p>
-      <p style="color:#666;">We hope to see you again soon.</p>
-    
-    ${EMAIL_FOOTER}
-    </div>
-  `;
+  return emailWrapper(`
+    <p style="font-size:0.62rem;text-transform:uppercase;letter-spacing:0.15em;color:#B8975A;margin:0 0 4px;">Cancellation</p>
+    <h2 style="font-family:'Cormorant Garamond',Georgia,serif;font-size:1.6rem;font-weight:300;color:#1A1A18;margin:0 0 16px;">Appointment cancelled.</h2>
+    <p style="font-size:0.88rem;font-weight:300;color:#7A7870;line-height:1.6;">
+      Your <strong style="color:#1A1A18;font-weight:400;">${serviceName}</strong> appointment has been cancelled.
+    </p>
+    <p style="font-size:0.85rem;font-weight:300;color:#7A7870;line-height:1.6;margin-top:12px;">
+      If you did not request this or have any questions, please contact us.
+    </p>
+    <p style="font-size:0.85rem;font-weight:300;color:#7A7870;margin-top:12px;">We hope to see you again soon.</p>
+    ${ctaButton('Book Again', 'https://hairbyamnesia.co.uk')}
+  `);
 }
 
-// Used when admin blocks a date — includes stylist, reason, and rebook CTA
 function overrideCancellationTemplate({ fullName, serviceName, stylistName, startTime, reason }) {
   const formattedDate = new Date(startTime).toLocaleString('en-GB', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
     hour: '2-digit', minute: '2-digit',
   });
-  return `
-    <div style="font-family:sans-serif;max-width:600px;margin:0 auto;">
-      <h2 style="background:#111;color:#fff;padding:20px;">Hair By Amnesia</h2>
-      <div style="padding:24px;">
-        <p>Hi ${fullName},</p>
-        <p>We're sorry to let you know that your upcoming appointment has been cancelled.</p>
-        <table style="width:100%;border-collapse:collapse;margin:16px 0;">
-          <tr><td style="padding:8px;border:1px solid #eee;"><strong>Service</strong></td><td style="padding:8px;border:1px solid #eee;">${serviceName}</td></tr>
-          <tr><td style="padding:8px;border:1px solid #eee;"><strong>Stylist</strong></td><td style="padding:8px;border:1px solid #eee;">${stylistName}</td></tr>
-          <tr><td style="padding:8px;border:1px solid #eee;"><strong>Date & Time</strong></td><td style="padding:8px;border:1px solid #eee;">${formattedDate}</td></tr>
-          ${reason ? `<tr><td style="padding:8px;border:1px solid #eee;"><strong>Reason</strong></td><td style="padding:8px;border:1px solid #eee;">${reason}</td></tr>` : ''}
-        </table>
-        <p style="color:#666;">We apologise for any inconvenience. Please rebook at your earliest convenience.</p>
-        <div style="text-align:center;margin:32px 0;">
-          <a href="https://hairbyamnesia.co.uk"
-             style="background:#111;color:#fff;padding:14px 28px;text-decoration:none;font-weight:bold;border-radius:4px;">
-            Rebook Now
-          </a>
-        </div>
-        <p style="font-size:13px;color:#666;">If you have any questions please don't hesitate to get in touch.</p>
-      </div>
-    
-    ${EMAIL_FOOTER}
-    </div>
-  `;
+  const rows = [
+    tableRow('Service', serviceName),
+    tableRow('Stylist', stylistName),
+    tableRow('Date &amp; Time', formattedDate),
+  ];
+  if (reason) rows.push(tableRow('Reason', reason));
+
+  return emailWrapper(`
+    <p style="font-size:0.62rem;text-transform:uppercase;letter-spacing:0.15em;color:#B8975A;margin:0 0 4px;">Schedule Change</p>
+    <h2 style="font-family:'Cormorant Garamond',Georgia,serif;font-size:1.6rem;font-weight:300;color:#1A1A18;margin:0 0 16px;">Appointment cancelled.</h2>
+    <p style="font-size:0.88rem;font-weight:300;color:#7A7870;line-height:1.6;">
+      Hi ${fullName}, we're sorry to let you know that your upcoming appointment has been cancelled.
+    </p>
+    ${detailsTable(rows)}
+    <p style="font-size:0.85rem;font-weight:300;color:#7A7870;line-height:1.6;">
+      We apologise for any inconvenience. Please rebook at your earliest convenience.
+    </p>
+    ${ctaButton('Rebook Now', 'https://hairbyamnesia.co.uk')}
+    <p style="font-size:0.78rem;font-weight:300;color:#B4A894;">If you have any questions please don't hesitate to get in touch.</p>
+  `);
 }
 
 function rescheduleTemplate({ fullName, serviceName, stylistName, newStartTime }) {
-  return `
-    <div style="font-family:sans-serif;max-width:600px;margin:0 auto;">
-      <h2 style="background:#111;color:#fff;padding:20px;">Hair By Amnesia</h2>
-      <p>Hi ${fullName},</p>
-      <p>Your appointment has been rescheduled.</p>
-      <table style="width:100%;border-collapse:collapse;">
-        <tr><td style="padding:8px;border:1px solid #eee;"><strong>Service</strong></td><td style="padding:8px;border:1px solid #eee;">${serviceName}</td></tr>
-        <tr><td style="padding:8px;border:1px solid #eee;"><strong>Stylist</strong></td><td style="padding:8px;border:1px solid #eee;">${stylistName}</td></tr>
-        <tr><td style="padding:8px;border:1px solid #eee;"><strong>New Date & Time</strong></td><td style="padding:8px;border:1px solid #eee;">${new Date(newStartTime).toLocaleString('en-GB')}</td></tr>
-      </table>
-      <p style="margin-top:20px;color:#666;">See you then!</p>
-    
-    ${EMAIL_FOOTER}
-    </div>
-  `;
+  return emailWrapper(`
+    <p style="font-size:0.62rem;text-transform:uppercase;letter-spacing:0.15em;color:#B8975A;margin:0 0 4px;">Rescheduled</p>
+    <h2 style="font-family:'Cormorant Garamond',Georgia,serif;font-size:1.6rem;font-weight:300;color:#1A1A18;margin:0 0 16px;">New time confirmed.</h2>
+    <p style="font-size:0.88rem;font-weight:300;color:#7A7870;line-height:1.6;">
+      Hi ${fullName}, your appointment has been rescheduled.
+    </p>
+    ${detailsTable([
+      tableRow('Service', serviceName),
+      tableRow('Stylist', stylistName),
+      tableRow('New Date &amp; Time', new Date(newStartTime).toLocaleString('en-GB')),
+    ])}
+    <p style="font-size:0.85rem;font-weight:300;color:#7A7870;line-height:1.6;">See you then!</p>
+  `);
 }
 
 function reviewRequestTemplate({ fullName, serviceName, bookingId }) {
   const reviewUrl = `https://hairbyamnesia.co.uk?review=${bookingId}`;
-  return `
-    <div style="font-family:sans-serif;max-width:600px;margin:0 auto;">
-      <h2 style="background:#111;color:#fff;padding:20px;">Hair By Amnesia</h2>
-      <div style="padding:24px;">
-        <p>Hi ${fullName},</p>
-        <p>We hope you enjoyed your <strong>${serviceName}</strong> appointment!</p>
-        <p>We'd love to hear your feedback — it only takes 30 seconds.</p>
-        <div style="text-align:center;margin:32px 0;">
-          <a href="${reviewUrl}"
-             style="background:#111;color:#fff;padding:14px 28px;text-decoration:none;font-weight:bold;border-radius:4px;">
-            Leave a Review
-          </a>
-        </div>
-        <p style="font-size:13px;color:#666;">
-          Or copy this link:<br/>
-          <a href="${reviewUrl}" style="color:#111;">${reviewUrl}</a>
-        </p>
-      </div>
-    
-    ${EMAIL_FOOTER}
-    </div>
-  `;
+  return emailWrapper(`
+    <p style="font-size:0.62rem;text-transform:uppercase;letter-spacing:0.15em;color:#B8975A;margin:0 0 4px;">Feedback</p>
+    <h2 style="font-family:'Cormorant Garamond',Georgia,serif;font-size:1.6rem;font-weight:300;color:#1A1A18;margin:0 0 16px;">How was your visit?</h2>
+    <p style="font-size:0.88rem;font-weight:300;color:#7A7870;line-height:1.6;">
+      Hi ${fullName}, we hope you enjoyed your <strong style="color:#1A1A18;font-weight:400;">${serviceName}</strong> appointment!
+    </p>
+    <p style="font-size:0.88rem;font-weight:300;color:#7A7870;line-height:1.6;">
+      We'd love to hear your feedback — it only takes 30 seconds.
+    </p>
+    ${ctaButton('Leave a Review', reviewUrl)}
+    <p style="font-size:0.78rem;font-weight:300;color:#B4A894;">
+      Or copy this link:<br/>
+      <a href="${reviewUrl}" style="color:#1A1A18;text-decoration:none;border-bottom:1px solid #E4E0D8;">${reviewUrl}</a>
+    </p>
+  `);
 }
 
 function reminderTemplate({ fullName, serviceName, stylistName, startTime, window }) {
-  const timing = window === '1h' ? 'in <strong>1 hour</strong>' : '<strong>tomorrow</strong>';
-  return `
-    <div style="font-family:sans-serif;max-width:600px;margin:0 auto;">
-      <h2 style="background:#111;color:#fff;padding:20px;">Hair By Amnesia</h2>
-      <div style="padding:24px;">
-        <p>Hi ${fullName},</p>
-        <p>This is a friendly reminder that you have an appointment ${timing}!</p>
-        <table style="width:100%;border-collapse:collapse;">
-          <tr><td style="padding:8px;border:1px solid #eee;"><strong>Service</strong></td><td style="padding:8px;border:1px solid #eee;">${serviceName}</td></tr>
-          <tr><td style="padding:8px;border:1px solid #eee;"><strong>Stylist</strong></td><td style="padding:8px;border:1px solid #eee;">${stylistName}</td></tr>
-          <tr><td style="padding:8px;border:1px solid #eee;"><strong>Date & Time</strong></td><td style="padding:8px;border:1px solid #eee;">${new Date(startTime).toLocaleString('en-GB')}</td></tr>
-        </table>
-        <p style="margin-top:20px;color:#666;">We look forward to seeing you!</p>
-        <p style="margin-top:16px;font-size:13px;color:#666;">
-          Need to cancel or reschedule?
-          <a href="https://hairbyamnesia.co.uk" style="color:#111;font-weight:bold;">Visit your profile</a>
-        </p>
-      </div>
-    
-    ${EMAIL_FOOTER}
-    </div>
-  `;
+  const timing = window === '1h' ? 'in <strong style="color:#1A1A18;font-weight:400;">1 hour</strong>' : '<strong style="color:#1A1A18;font-weight:400;">tomorrow</strong>';
+  return emailWrapper(`
+    <p style="font-size:0.62rem;text-transform:uppercase;letter-spacing:0.15em;color:#B8975A;margin:0 0 4px;">Reminder</p>
+    <h2 style="font-family:'Cormorant Garamond',Georgia,serif;font-size:1.6rem;font-weight:300;color:#1A1A18;margin:0 0 16px;">See you soon.</h2>
+    <p style="font-size:0.88rem;font-weight:300;color:#7A7870;line-height:1.6;">
+      Hi ${fullName}, this is a friendly reminder that you have an appointment ${timing}!
+    </p>
+    ${detailsTable([
+      tableRow('Service', serviceName),
+      tableRow('Stylist', stylistName),
+      tableRow('Date &amp; Time', new Date(startTime).toLocaleString('en-GB')),
+    ])}
+    <p style="font-size:0.85rem;font-weight:300;color:#7A7870;line-height:1.6;">We look forward to seeing you!</p>
+    <p style="font-size:0.78rem;font-weight:300;color:#B4A894;margin-top:16px;">
+      Need to cancel or reschedule?
+      <a href="https://hairbyamnesia.co.uk" style="color:#1A1A18;text-decoration:none;border-bottom:1px solid #E4E0D8;">Visit your profile</a>
+    </p>
+  `);
 }
 
 module.exports = {
   initMail,
   sendEmail,
   bookingConfirmationTemplate,
+  bookingPendingTemplate,
+  bookingRejectionTemplate,
   cancellationTemplate,
   overrideCancellationTemplate,
   rescheduleTemplate,

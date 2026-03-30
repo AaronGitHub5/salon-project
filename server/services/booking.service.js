@@ -7,6 +7,8 @@ const { calculatePrice } = require('../utils/pricing');
 const {
   sendEmail,
   bookingConfirmationTemplate,
+  bookingPendingTemplate,
+  bookingRejectionTemplate,
   cancellationTemplate,
   rescheduleTemplate,
   reviewRequestTemplate,
@@ -28,9 +30,10 @@ async function createBooking({ customer_id, service_id, stylist_id, start_time }
   const conflict = await bookingsDao.checkConflict(stylist_id, start.toISOString(), end.toISOString());
   if (conflict) throw Object.assign(new Error('Time slot unavailable.'), { status: 409 });
 
-  const booking = await bookingsDao.createBooking({ customer_id, service_id, stylist_id, start_time: start, end_time: end });
+  // Senior stylist bookings start as pending — must be approved
+  const status = stylist.is_senior ? 'pending' : 'confirmed';
+  const booking = await bookingsDao.createBooking({ customer_id, service_id, stylist_id, start_time: start, end_time: end, status });
 
-  // Use per-stylist peak config (all fields default if not yet set)
   const { price: finalPrice } = calculatePrice(
     service.base_price,
     stylist.price_multiplier,
@@ -42,14 +45,22 @@ async function createBooking({ customer_id, service_id, stylist_id, start_time }
 
   const profile = await profilesDao.getProfileById(customer_id);
   if (profile?.email) {
-    await sendEmail(
-      profile.email,
-      'Booking Confirmed - Hair By Amnesia',
-      bookingConfirmationTemplate({ fullName: profile.full_name, serviceName: service.name, stylistName: stylist.name, startTime: start, price: finalPrice })
-    );
+    if (status === 'pending') {
+      await sendEmail(
+        profile.email,
+        'Booking Request Received - Hair By Amnesia',
+        bookingPendingTemplate({ fullName: profile.full_name, serviceName: service.name, stylistName: stylist.name, startTime: start, price: finalPrice })
+      );
+    } else {
+      await sendEmail(
+        profile.email,
+        'Booking Confirmed - Hair By Amnesia',
+        bookingConfirmationTemplate({ fullName: profile.full_name, serviceName: service.name, stylistName: stylist.name, startTime: start, price: finalPrice })
+      );
+    }
   }
 
-  return { booking, price: finalPrice };
+  return { booking, price: finalPrice, status };
 }
 
 async function createGuestBooking({ guestName, guestPhone, guestEmail, serviceId, stylistId, startTime }) {
@@ -74,7 +85,6 @@ async function createGuestBooking({ guestName, guestPhone, guestEmail, serviceId
 
   const booking = await bookingsDao.createGuestBooking({ guest_id: guest.id, service_id: serviceId, stylist_id: stylistId, start_time: start, end_time: end });
 
-  // Use per-stylist peak config (all fields default if not yet set)
   const { price: finalPrice } = calculatePrice(
     service.base_price,
     stylist.price_multiplier,
@@ -93,6 +103,54 @@ async function createGuestBooking({ guestName, guestPhone, guestEmail, serviceId
   }
 
   return { guest, booking, price: finalPrice };
+}
+
+async function approveBooking(id) {
+  const booking = await bookingsDao.getBookingById(id);
+  if (!booking) throw Object.assign(new Error('Booking not found'), { status: 404 });
+  if (booking.status !== 'pending') throw Object.assign(new Error('Booking is not pending'), { status: 400 });
+
+  const data = await bookingsDao.approveBooking(id);
+
+  if (data?.profiles?.email) {
+    const { sendEmail, bookingConfirmationTemplate } = require('./email.service');
+    await sendEmail(
+      data.profiles.email,
+      'Booking Confirmed - Hair By Amnesia',
+      bookingConfirmationTemplate({
+        fullName: data.profiles.full_name,
+        serviceName: data.services.name,
+        stylistName: data.stylists.name,
+        startTime: new Date(booking.start_time),
+        price: null,
+      })
+    );
+  }
+
+  return data;
+}
+
+async function rejectBooking(id) {
+  const booking = await bookingsDao.getBookingById(id);
+  if (!booking) throw Object.assign(new Error('Booking not found'), { status: 404 });
+  if (booking.status !== 'pending') throw Object.assign(new Error('Booking is not pending'), { status: 400 });
+
+  const data = await bookingsDao.rejectBooking(id);
+
+  if (data?.profiles?.email) {
+    await sendEmail(
+      data.profiles.email,
+      'Booking Request Declined - Hair By Amnesia',
+      bookingRejectionTemplate({
+        fullName: data.profiles.full_name,
+        serviceName: data.services.name,
+        stylistName: data.stylists.name,
+        startTime: new Date(booking.start_time),
+      })
+    );
+  }
+
+  return data;
 }
 
 async function cancelBooking(id) {
@@ -189,4 +247,4 @@ async function exportBookingIcs(id) {
   });
 }
 
-module.exports = { createBooking, createGuestBooking, cancelBooking, completeBooking, rescheduleBooking, exportBookingIcs };
+module.exports = { createBooking, createGuestBooking, approveBooking, rejectBooking, cancelBooking, completeBooking, rescheduleBooking, exportBookingIcs };

@@ -1,9 +1,11 @@
-import { createContext, useState, useEffect, useContext, useRef } from 'react';
+import { createContext, useState, useEffect, useContext, useRef, useCallback } from 'react';
 import { supabase } from './lib/supabase';
 
 const AuthContext = createContext();
 
 const AUTH_VERSION = '7';
+const INACTIVITY_TIMEOUT = 60 * 60 * 1000; // 1 hour
+const ACTIVITY_EVENTS = ['mousemove', 'keydown', 'click', 'touchstart', 'scroll'];
 
 function nukeStorage() {
   Object.keys(localStorage).forEach((key) => {
@@ -40,9 +42,38 @@ export function AuthProvider({ children }) {
   const recoveryRef = useRef(false);
   const lastEventRef = useRef(null);
   const currentUserIdRef = useRef(null);
+  const inactivityTimerRef = useRef(null);
 
-  // 1) Auth listener — synchronous only, no async work here.
-  //    Sets user/session state; role is fetched in a separate effect.
+  const signOut = useCallback(() => {
+    nukeStorage();
+    sessionStorage.removeItem('admin_session_active');
+    supabase.auth.signOut().catch(() => {});
+    window.location.href = '/';
+  }, []);
+
+  // Inactivity timer — only active when a user is logged in
+  useEffect(() => {
+    if (!user) return;
+
+    const resetTimer = () => {
+      clearTimeout(inactivityTimerRef.current);
+      inactivityTimerRef.current = setTimeout(() => {
+        signOut();
+      }, INACTIVITY_TIMEOUT);
+    };
+
+    // Start timer immediately on login
+    resetTimer();
+
+    // Reset on any user activity
+    ACTIVITY_EVENTS.forEach((event) => window.addEventListener(event, resetTimer, { passive: true }));
+
+    return () => {
+      clearTimeout(inactivityTimerRef.current);
+      ACTIVITY_EVENTS.forEach((event) => window.removeEventListener(event, resetTimer));
+    };
+  }, [user, signOut]);
+
   useEffect(() => {
     let fallbackTimer;
 
@@ -73,7 +104,6 @@ export function AuthProvider({ children }) {
           return;
         }
 
-        // SIGNED_IN fires after PASSWORD_RECOVERY — suppress it
         if (recoveryRef.current) {
           clearTimeout(fallbackTimer);
           setLoading(false);
@@ -82,23 +112,19 @@ export function AuthProvider({ children }) {
 
         clearTimeout(fallbackTimer);
 
-        // Same user — just update the session silently (token refresh, tab refocus, etc.)
-        // Don't reset role or show spinner.
         if (session.user.id === currentUserIdRef.current) {
           setSession(session);
           return;
         }
 
-        // Different user (or first load) — full reset
         currentUserIdRef.current = session.user.id;
         setUser(session.user);
         setSession(session);
-        setRole(null);       // Clear role — will be fetched by the role effect
-        setLoading(true);    // Show spinner until role is resolved
+        setRole(null);
+        setLoading(true);
       }
     );
 
-    // Safety net: if onAuthStateChange never fires, stop the spinner
     fallbackTimer = setTimeout(() => setLoading(false), 3000);
 
     return () => {
@@ -107,8 +133,6 @@ export function AuthProvider({ children }) {
     };
   }, []);
 
-  // 2) Role fetch — runs whenever user.id changes.
-  //    Automatically cancels the previous fetch if the user changes mid-flight.
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
@@ -116,9 +140,6 @@ export function AuthProvider({ children }) {
     fetchRole(user.id).then((userRole) => {
       if (cancelled) return;
 
-      // Admin sessions expire when the browser closes.
-      // sessionStorage is cleared on close, so if the flag is missing
-      // and this isn't a fresh login, force re-login.
       if (
         userRole === 'admin' &&
         lastEventRef.current !== 'SIGNED_IN' &&
@@ -145,13 +166,6 @@ export function AuthProvider({ children }) {
   const signIn = async (credentials) => {
     const { data, error } = await supabase.auth.signInWithPassword(credentials);
     return { data, error };
-  };
-
-  const signOut = () => {
-    nukeStorage();
-    sessionStorage.removeItem('admin_session_active');
-    supabase.auth.signOut().catch(() => {});
-    window.location.href = '/login';
   };
 
   if (loading) {

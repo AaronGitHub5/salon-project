@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import GuestBookingModal from './GuestBookingModal';
@@ -91,7 +91,6 @@ function VoucherLookup({ authHeader }) {
 
         {voucher && (
           <div className={`rounded-lg border-2 p-6 ${voucher.used ? 'border-gray-200 bg-gray-50' : 'border-black bg-white'}`}>
-            {/* Status badge */}
             <div className="flex justify-between items-start mb-4">
               <span className={`text-xs font-bold uppercase px-3 py-1 rounded ${voucher.used ? 'bg-gray-200 text-gray-500' : 'bg-black text-white'}`}>
                 {voucher.used ? 'Already Used' : `${voucher.discount}% Discount`}
@@ -100,20 +99,14 @@ function VoucherLookup({ authHeader }) {
                 Issued {new Date(voucher.created_at).toLocaleDateString('en-GB')}
               </span>
             </div>
-
-            {/* Voucher code */}
             <p className={`font-mono font-bold text-2xl mb-4 ${voucher.used ? 'text-gray-400 line-through' : 'text-black'}`}>
               {voucher.code}
             </p>
-
-            {/* Customer details */}
             <div className="bg-gray-50 rounded p-4 mb-4">
               <p className="text-[10px] text-gray-400 uppercase tracking-widest mb-1">Customer</p>
               <p className="font-bold text-gray-800">{voucher.profiles?.full_name}</p>
               <p className="text-sm text-gray-500">{voucher.profiles?.email}</p>
             </div>
-
-            {/* Actions */}
             {marked ? (
               <div className="bg-green-50 border border-green-200 rounded p-4 text-center">
                 <p className="text-green-700 font-bold text-sm">✓ Voucher marked as used</p>
@@ -151,6 +144,172 @@ function VoucherLookup({ authHeader }) {
   );
 }
 
+function CancelBooking({ authHeader }) {
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [cancellingId, setCancellingId] = useState(null);
+  const [confirmId, setConfirmId] = useState(null);
+  const debounceRef = useRef(null);
+
+  const handleSearch = async (value) => {
+    if (value.trim().length < 2) {
+      setResults([]);
+      setError('');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    try {
+      const res = await fetch(`${API_URL}/api/bookings/search?q=${encodeURIComponent(value.trim())}`, {
+        headers: authHeader,
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || 'Search failed.');
+        setResults([]);
+      } else {
+        setResults(Array.isArray(data) ? data : []);
+      }
+    } catch (err) {
+      setError('Something went wrong.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleInputChange = (e) => {
+    const value = e.target.value;
+    setQuery(value);
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => handleSearch(value), 400);
+  };
+
+  const handleCancel = async (bookingId) => {
+    setCancellingId(bookingId);
+    try {
+      const res = await fetch(`${API_URL}/api/bookings/${bookingId}/cancel`, {
+        method: 'PUT',
+        headers: authHeader,
+      });
+      if (res.ok) {
+        setResults(prev => prev.filter(b => b.id !== bookingId));
+        setConfirmId(null);
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Failed to cancel booking.');
+      }
+    } catch (err) {
+      alert('Something went wrong.');
+    } finally {
+      setCancellingId(null);
+    }
+  };
+
+  return (
+    <div className="max-w-2xl mx-auto">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+        <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2">Cancel Customer Booking</h2>
+        <p className="text-sm text-gray-500 mb-6">Search by customer name, email, or phone number.</p>
+
+        <div className="relative mb-6">
+          <input
+            type="text"
+            value={query}
+            onChange={handleInputChange}
+            placeholder="e.g. Sarah, sarah@email.com, 07700..."
+            className="w-full border p-3 rounded bg-gray-50 text-sm focus:outline-black pr-10"
+          />
+          {loading && (
+            <div className="absolute right-3 top-3.5 w-4 h-4 border-2 border-gray-300 border-t-black rounded-full animate-spin" />
+          )}
+        </div>
+
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded p-4 mb-4">
+            <p className="text-red-600 text-sm">{error}</p>
+          </div>
+        )}
+
+        {query.trim().length >= 2 && !loading && results.length === 0 && !error && (
+          <div className="text-center py-10 text-gray-400 text-sm">
+            No active bookings found for "{query}".
+          </div>
+        )}
+
+        {results.length > 0 && (
+          <div className="space-y-3">
+            {results.map((booking) => {
+              const customerName = booking.profiles?.full_name || booking.guests?.full_name || 'Guest';
+              const customerEmail = booking.profiles?.email || booking.guests?.email || null;
+              const customerPhone = booking.profiles?.phone_number || booking.guests?.phone_number || null;
+              const start = new Date(booking.start_time);
+              const isConfirming = confirmId === booking.id;
+              const isCancelling = cancellingId === booking.id;
+
+              return (
+                <div key={booking.id} className="border border-gray-200 rounded-lg p-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span className="font-bold text-gray-800">{customerName}</span>
+                        <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${
+                          booking.status === 'pending'
+                            ? 'bg-amber-100 text-amber-700'
+                            : 'bg-green-100 text-green-700'
+                        }`}>
+                          {booking.status}
+                        </span>
+                        {!booking.profiles && (
+                          <span className="text-[10px] font-bold uppercase bg-gray-100 text-gray-400 px-2 py-0.5 rounded">Guest</span>
+                        )}
+                      </div>
+                      <p className="text-sm text-gray-600">{booking.services?.name} — {booking.stylists?.name}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {start.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })} at {start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                      {customerEmail && <p className="text-xs text-gray-400 mt-0.5">✉ {customerEmail}</p>}
+                      {customerPhone && <p className="text-xs text-gray-400">✆ {customerPhone}</p>}
+                    </div>
+
+                    <div className="shrink-0">
+                      {isConfirming ? (
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleCancel(booking.id)}
+                            disabled={isCancelling}
+                            className="bg-red-600 text-white text-xs font-bold uppercase px-4 py-2 rounded hover:bg-red-700 transition disabled:opacity-50"
+                          >
+                            {isCancelling ? '...' : 'Confirm Cancel'}
+                          </button>
+                          <button
+                            onClick={() => setConfirmId(null)}
+                            className="border border-gray-200 text-gray-500 text-xs font-bold uppercase px-4 py-2 rounded hover:bg-gray-50 transition"
+                          >
+                            Back
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setConfirmId(booking.id)}
+                          className="border border-red-200 text-red-500 text-xs font-bold uppercase px-4 py-2 rounded hover:bg-red-50 transition"
+                        >
+                          Cancel Booking
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function AdminDashboard() {
   const { user, session, signOut } = useAuth();
   const navigate = useNavigate();
@@ -161,6 +320,7 @@ export default function AdminDashboard() {
   const [editingId, setEditingId] = useState(null);
   const [refresh, setRefresh] = useState(0);
   const [showGuestModal, setShowGuestModal] = useState(false);
+  const [guestBookingSuccess, setGuestBookingSuccess] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pendingReviews, setPendingReviews] = useState([]);
   const [reviewsLoading, setReviewsLoading] = useState(false);
@@ -238,7 +398,16 @@ export default function AdminDashboard() {
   const handleDelete = async (id) => {
     if (!confirm('Delete service?')) return;
     try {
-      await fetch(`${API_URL}/api/services/${id}`, { method: 'DELETE', headers: authHeader });
+      const res = await fetch(`${API_URL}/api/services/${id}`, { method: 'DELETE', headers: authHeader });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        if (body.error && body.error.includes('bookings')) {
+          alert('This service has bookings attached to it and cannot be deleted.');
+        } else {
+          alert(body.error || 'Failed to delete service.');
+        }
+        return;
+      }
       setRefresh(p => p + 1);
     } catch (err) {
       console.error(err);
@@ -254,8 +423,8 @@ export default function AdminDashboard() {
         body: JSON.stringify(bookingData),
       });
       if (res.ok) {
-        alert('Shadow Booking Created!');
         setShowGuestModal(false);
+        setGuestBookingSuccess(true);
       } else {
         const err = await res.json().catch(() => ({}));
         alert(`Failed to create booking: ${err.error || res.status}`);
@@ -280,7 +449,6 @@ export default function AdminDashboard() {
 
   const handleLogout = async () => {
     await signOut();
-    // signOut handles redirect via window.location.href
   };
 
   return (
@@ -296,13 +464,14 @@ export default function AdminDashboard() {
         </div>
       </header>
 
-      <div className="flex gap-4 mb-8 border-b border-gray-200 pb-1">
+      <div className="flex gap-4 mb-8 border-b border-gray-200 pb-1 flex-wrap">
         {[
           { key: 'analytics', label: 'Overview & Stats' },
           { key: 'services', label: 'Service Menu' },
           { key: 'stylists', label: 'Stylists' },
           { key: 'loyalty', label: 'Loyalty & Vouchers' },
           { key: 'reviews', label: 'Reviews' },
+          { key: 'cancel', label: 'Cancel Booking' },
         ].map(({ key, label }) => (
           <button
             key={key}
@@ -451,7 +620,31 @@ export default function AdminDashboard() {
         </div>
       )}
 
+      {activeTab === 'cancel' && (
+        <div className="animate-fade-in">
+          <CancelBooking authHeader={authHeader} />
+        </div>
+      )}
+
       {showGuestModal && <GuestBookingModal onClose={() => setShowGuestModal(false)} onConfirm={handleGuestBooking} />}
+
+      {guestBookingSuccess && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
+          <div className="bg-white w-full max-w-sm p-8 text-center shadow-2xl rounded-lg">
+            <div className="w-14 h-14 rounded-full bg-green-50 border border-green-200 flex items-center justify-center mx-auto mb-5">
+              <span className="text-xl text-green-600">✓</span>
+            </div>
+            <h2 className="text-lg font-bold uppercase tracking-widest text-gray-800 mb-1">Guest Booking Made</h2>
+            <p className="text-sm text-gray-500 mb-6">The booking has been confirmed and the customer will receive an email if one was provided.</p>
+            <button
+              onClick={() => setGuestBookingSuccess(false)}
+              className="w-full bg-black text-white py-3 text-xs font-bold uppercase tracking-widest hover:bg-gray-800 transition"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

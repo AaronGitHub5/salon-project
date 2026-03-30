@@ -40,16 +40,20 @@ export default function StylistSchedule() {
   const { user, session } = useAuth();
   const navigate = useNavigate();
 
+  const [activeTab, setActiveTab] = useState('schedule');
   const [myBookings, setMyBookings] = useState([]);
+  const [pendingBookings, setPendingBookings] = useState([]);
   const [stylistProfile, setStylistProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [pendingLoading, setPendingLoading] = useState(false);
   const [error, setError] = useState(null);
   const [openWeeks, setOpenWeeks] = useState({});
+
+  const authHeader = { Authorization: `Bearer ${session?.access_token}` };
 
   useEffect(() => {
     async function fetchMySchedule() {
       if (!user?.email || !session?.access_token) { setLoading(false); return; }
-      const authHeader = { Authorization: `Bearer ${session.access_token}` };
       try {
         const stylistRes = await fetch(`${API_URL}/api/stylists`);
         const stylists = await stylistRes.json();
@@ -70,14 +74,33 @@ export default function StylistSchedule() {
           }
           setOpenWeeks(initial);
         }
+
+        // Fetch pending if senior stylist
+        if (me.is_senior) {
+          fetchPending(me.id);
+        }
       } catch (err) {
         console.error(err);
         setError('Something went wrong loading your schedule.');
       } finally {
-        setLoading(false); }
+        setLoading(false);
+      }
     }
     fetchMySchedule();
   }, [user, session]);
+
+  const fetchPending = async (stylistId) => {
+    setPendingLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/bookings/stylist/${stylistId}/pending`, { headers: authHeader });
+      const data = await res.json();
+      setPendingBookings(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setPendingLoading(false);
+    }
+  };
 
   const toggleWeek = (key) => setOpenWeeks(prev => ({ ...prev, [key]: !prev[key] }));
 
@@ -86,7 +109,7 @@ export default function StylistSchedule() {
     try {
       const res = await fetch(`${API_URL}/api/bookings/${bookingId}/complete`, {
         method: 'PUT',
-        headers: { Authorization: `Bearer ${session?.access_token}` },
+        headers: authHeader,
       });
       if (res.ok) {
         alert('Job Complete! Points awarded.');
@@ -101,11 +124,54 @@ export default function StylistSchedule() {
     }
   };
 
+  const handleApprove = async (bookingId) => {
+    try {
+      const res = await fetch(`${API_URL}/api/bookings/${bookingId}/approve`, {
+        method: 'PUT',
+        headers: authHeader,
+      });
+      if (res.ok) {
+        setPendingBookings(prev => prev.filter(b => b.id !== bookingId));
+        // Add to confirmed schedule
+        const approved = pendingBookings.find(b => b.id === bookingId);
+        if (approved) setMyBookings(prev => [...prev, { ...approved, status: 'confirmed' }]);
+      } else {
+        const data = await res.json();
+        alert(`Error: ${data.error || 'Could not approve booking'}`);
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Something went wrong. Please try again.');
+    }
+  };
+
+  const handleReject = async (bookingId) => {
+    if (!confirm('Reject this booking request? The customer will be notified by email.')) return;
+    try {
+      const res = await fetch(`${API_URL}/api/bookings/${bookingId}/reject`, {
+        method: 'PUT',
+        headers: authHeader,
+      });
+      if (res.ok) {
+        setPendingBookings(prev => prev.filter(b => b.id !== bookingId));
+      } else {
+        const data = await res.json();
+        alert(`Error: ${data.error || 'Could not reject booking'}`);
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Something went wrong. Please try again.');
+    }
+  };
+
   if (loading) return <div className="p-10 animate-pulse">Loading...</div>;
   if (!stylistProfile) return <div className="p-10">Access Restricted</div>;
   if (error) return <div className="p-10 text-red-500">{error}</div>;
 
   const weeks = groupByWeek(myBookings);
+  const tabs = stylistProfile.is_senior
+    ? [{ key: 'schedule', label: 'My Schedule' }, { key: 'pending', label: 'Pending Approvals', count: pendingBookings.length }]
+    : [{ key: 'schedule', label: 'My Schedule' }];
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans p-4 md:p-6">
@@ -120,133 +186,222 @@ export default function StylistSchedule() {
           <button onClick={() => navigate('/app')} className="text-xs font-bold uppercase underline">Exit</button>
         </div>
 
-        {weeks.length === 0 ? (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-16 text-center text-gray-400">
-            No appointments found.
+        {/* Tabs — only shown for senior stylist */}
+        {stylistProfile.is_senior && (
+          <div className="flex gap-4 mb-6 border-b border-gray-200">
+            {tabs.map(({ key, label, count }) => (
+              <button
+                key={key}
+                onClick={() => setActiveTab(key)}
+                className={`pb-2 px-2 text-sm font-bold uppercase tracking-widest transition ${activeTab === key ? 'border-b-2 border-black text-black' : 'text-gray-400 hover:text-gray-600'}`}
+              >
+                {label}
+                {count > 0 && (
+                  <span className="ml-2 bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">{count}</span>
+                )}
+              </button>
+            ))}
           </div>
-        ) : (
-          <div className="space-y-4">
-            {weeks.map((week) => {
-              const key = week.weekStart.toISOString();
-              const isOpen = !!openWeeks[key];
-              const isCurrent = isCurrentWeek(week.weekStart);
-              const isPast = isPastWeek(week.weekStart);
+        )}
 
-              return (
-                <div key={key} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        {/* Pending Approvals Tab */}
+        {activeTab === 'pending' && (
+          <div>
+            {pendingLoading ? (
+              <div className="text-center py-12 text-gray-400 animate-pulse">Loading...</div>
+            ) : pendingBookings.length === 0 ? (
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-16 text-center text-gray-400">
+                No pending booking requests.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {pendingBookings.map((booking) => {
+                  const start = new Date(booking.start_time);
+                  const customerName = booking.profiles?.full_name || 'Unknown';
+                  const customerEmail = booking.profiles?.email || null;
+                  const customerPhone = booking.profiles?.phone_number || null;
 
-                  {/* Week header */}
-                  <button
-                    onClick={() => toggleWeek(key)}
-                    className="w-full flex items-center justify-between px-4 md:px-6 py-4 hover:bg-gray-50 transition text-left"
-                  >
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-bold uppercase tracking-widest text-gray-800">
-                        {week.label}
-                      </span>
-                      {isCurrent && (
-                        <span className="text-[10px] font-bold uppercase bg-black text-white px-2 py-0.5 rounded">
-                          This Week
-                        </span>
-                      )}
-                      {isPast && (
-                        <span className="text-[10px] font-bold uppercase bg-gray-100 text-gray-400 px-2 py-0.5 rounded">
-                          Past
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0 ml-2">
-                      <span className="text-xs text-gray-400 hidden sm:block">
-                        {week.bookings.length} appointment{week.bookings.length !== 1 ? 's' : ''}
-                      </span>
-                      <span className={`text-gray-400 text-xs transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}>▼</span>
-                    </div>
-                  </button>
+                  return (
+                    <div key={booking.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        <div className="flex items-start gap-4">
+                          {/* Time block */}
+                          <div className="text-left w-20 shrink-0">
+                            <p className="text-xl font-bold font-mono leading-tight">
+                              {start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                            <p className="text-[10px] text-gray-400 uppercase mt-0.5">
+                              {start.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}
+                            </p>
+                          </div>
 
-                  {/* Appointments */}
-                  {isOpen && (
-                    <div className="border-t border-gray-100">
-                      {week.bookings.map((booking) => {
-                        const start = new Date(booking.start_time);
-                        const customerName = booking.profiles?.full_name || booking.guests?.full_name || 'Guest';
-                        const customerEmail = booking.profiles?.email || booking.guests?.email || null;
-                        const customerPhone = booking.profiles?.phone_number || booking.guests?.phone_number || null;
-                        const isGuest = !booking.profiles;
-
-                        return (
-                          <div
-                            key={booking.id}
-                            className="border-b last:border-0 border-gray-100 px-4 md:px-6 py-4 hover:bg-gray-50 transition"
-                          >
-                            {/* FIX: flex-col on mobile, flex-row on md+ */}
-                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-
-                              {/* Left: time + customer info */}
-                              <div className="flex items-start gap-4">
-                                {/* Time block */}
-                                <div className="text-left w-20 shrink-0">
-                                  <p className="text-xl font-bold font-mono leading-tight">
-                                    {start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                  </p>
-                                  <p className="text-[10px] text-gray-400 uppercase mt-0.5">
-                                    {start.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}
-                                  </p>
-                                </div>
-
-                                {/* Customer info */}
-                                <div className="min-w-0">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <h3 className="font-bold text-gray-800">{customerName}</h3>
-                                    {isGuest && (
-                                      <span className="text-[10px] font-bold uppercase bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded">
-                                        Guest
-                                      </span>
-                                    )}
-                                  </div>
-                                  <p className="text-sm text-gray-500 mt-0.5">{booking.services?.name}</p>
-                                  <div className="flex flex-col gap-0.5 mt-1">
-                                    {customerEmail && (
-                                      <a href={`mailto:${customerEmail}`} className="text-xs text-gray-400 hover:text-black transition truncate">
-                                        ✉ {customerEmail}
-                                      </a>
-                                    )}
-                                    {customerPhone && (
-                                      <a href={`tel:${customerPhone}`} className="text-xs text-gray-400 hover:text-black transition">
-                                        ✆ {customerPhone}
-                                      </a>
-                                    )}
-                                    {!customerEmail && !customerPhone && (
-                                      <p className="text-xs text-gray-300 italic">No contact details</p>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Right: action button — full width on mobile, auto on desktop */}
-                              <div className="shrink-0 sm:ml-4">
-                                {booking.status === 'completed' ? (
-                                  <span className="inline-flex items-center text-green-600 border border-green-200 bg-green-50 text-xs font-bold px-3 py-2 rounded uppercase w-full sm:w-auto justify-center">
-                                    ✓ Completed
-                                  </span>
-                                ) : (
-                                  <button
-                                    onClick={() => handleComplete(booking.id)}
-                                    className="w-full sm:w-auto bg-black text-white text-xs font-bold uppercase px-4 py-2.5 rounded hover:bg-gray-800 transition shadow-sm"
-                                  >
-                                    Complete Job
-                                  </button>
-                                )}
-                              </div>
+                          {/* Customer info */}
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h3 className="font-bold text-gray-800">{customerName}</h3>
+                              <span className="text-[10px] font-bold uppercase bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">
+                                Pending
+                              </span>
+                            </div>
+                            <p className="text-sm text-gray-500 mt-0.5">{booking.services?.name}</p>
+                            <div className="flex flex-col gap-0.5 mt-1">
+                              {customerEmail && (
+                                <a href={`mailto:${customerEmail}`} className="text-xs text-gray-400 hover:text-black transition truncate">
+                                  ✉ {customerEmail}
+                                </a>
+                              )}
+                              {customerPhone && (
+                                <a href={`tel:${customerPhone}`} className="text-xs text-gray-400 hover:text-black transition">
+                                  ✆ {customerPhone}
+                                </a>
+                              )}
                             </div>
                           </div>
-                        );
-                      })}
+                        </div>
+
+                        {/* Approve / Reject */}
+                        <div className="flex gap-2 shrink-0">
+                          <button
+                            onClick={() => handleApprove(booking.id)}
+                            className="bg-black text-white text-xs font-bold uppercase px-4 py-2.5 rounded hover:bg-gray-800 transition"
+                          >
+                            ✓ Approve
+                          </button>
+                          <button
+                            onClick={() => handleReject(booking.id)}
+                            className="border border-red-200 text-red-500 text-xs font-bold uppercase px-4 py-2.5 rounded hover:bg-red-50 transition"
+                          >
+                            ✕ Reject
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                  )}
-                </div>
-              );
-            })}
+                  );
+                })}
+              </div>
+            )}
           </div>
+        )}
+
+        {/* Schedule Tab */}
+        {activeTab === 'schedule' && (
+          weeks.length === 0 ? (
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-16 text-center text-gray-400">
+              No appointments found.
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {weeks.map((week) => {
+                const key = week.weekStart.toISOString();
+                const isOpen = !!openWeeks[key];
+                const isCurrent = isCurrentWeek(week.weekStart);
+                const isPast = isPastWeek(week.weekStart);
+
+                return (
+                  <div key={key} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                    <button
+                      onClick={() => toggleWeek(key)}
+                      className="w-full flex items-center justify-between px-4 md:px-6 py-4 hover:bg-gray-50 transition text-left"
+                    >
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-bold uppercase tracking-widest text-gray-800">
+                          {week.label}
+                        </span>
+                        {isCurrent && (
+                          <span className="text-[10px] font-bold uppercase bg-black text-white px-2 py-0.5 rounded">
+                            This Week
+                          </span>
+                        )}
+                        {isPast && (
+                          <span className="text-[10px] font-bold uppercase bg-gray-100 text-gray-400 px-2 py-0.5 rounded">
+                            Past
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0 ml-2">
+                        <span className="text-xs text-gray-400 hidden sm:block">
+                          {week.bookings.length} appointment{week.bookings.length !== 1 ? 's' : ''}
+                        </span>
+                        <span className={`text-gray-400 text-xs transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}>▼</span>
+                      </div>
+                    </button>
+
+                    {isOpen && (
+                      <div className="border-t border-gray-100">
+                        {week.bookings.map((booking) => {
+                          const start = new Date(booking.start_time);
+                          const customerName = booking.profiles?.full_name || booking.guests?.full_name || 'Guest';
+                          const customerEmail = booking.profiles?.email || booking.guests?.email || null;
+                          const customerPhone = booking.profiles?.phone_number || booking.guests?.phone_number || null;
+                          const isGuest = !booking.profiles;
+
+                          return (
+                            <div
+                              key={booking.id}
+                              className="border-b last:border-0 border-gray-100 px-4 md:px-6 py-4 hover:bg-gray-50 transition"
+                            >
+                              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                                <div className="flex items-start gap-4">
+                                  <div className="text-left w-20 shrink-0">
+                                    <p className="text-xl font-bold font-mono leading-tight">
+                                      {start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </p>
+                                    <p className="text-[10px] text-gray-400 uppercase mt-0.5">
+                                      {start.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}
+                                    </p>
+                                  </div>
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <h3 className="font-bold text-gray-800">{customerName}</h3>
+                                      {isGuest && (
+                                        <span className="text-[10px] font-bold uppercase bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded">
+                                          Guest
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="text-sm text-gray-500 mt-0.5">{booking.services?.name}</p>
+                                    <div className="flex flex-col gap-0.5 mt-1">
+                                      {customerEmail && (
+                                        <a href={`mailto:${customerEmail}`} className="text-xs text-gray-400 hover:text-black transition truncate">
+                                          ✉ {customerEmail}
+                                        </a>
+                                      )}
+                                      {customerPhone && (
+                                        <a href={`tel:${customerPhone}`} className="text-xs text-gray-400 hover:text-black transition">
+                                          ✆ {customerPhone}
+                                        </a>
+                                      )}
+                                      {!customerEmail && !customerPhone && (
+                                        <p className="text-xs text-gray-300 italic">No contact details</p>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="shrink-0 sm:ml-4">
+                                  {booking.status === 'completed' ? (
+                                    <span className="inline-flex items-center text-green-600 border border-green-200 bg-green-50 text-xs font-bold px-3 py-2 rounded uppercase w-full sm:w-auto justify-center">
+                                      ✓ Completed
+                                    </span>
+                                  ) : (
+                                    <button
+                                      onClick={() => handleComplete(booking.id)}
+                                      className="w-full sm:w-auto bg-black text-white text-xs font-bold uppercase px-4 py-2.5 rounded hover:bg-gray-800 transition shadow-sm"
+                                    >
+                                      Complete Job
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )
         )}
       </div>
     </div>

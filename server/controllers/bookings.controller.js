@@ -13,7 +13,8 @@ async function getAll(req, res) {
 async function create(req, res) {
   try {
     const result = await bookingService.createBooking(req.body);
-    res.status(201).json({ message: 'Booking Confirmed!', ...result });
+    const message = result.status === 'pending' ? 'Booking Request Sent!' : 'Booking Confirmed!';
+    res.status(201).json({ message, ...result });
   } catch (err) {
     const status = err.status || 500;
     res.status(status).json({ error: err.message });
@@ -45,6 +46,48 @@ async function getByStylist(req, res) {
     res.json(data);
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+}
+
+async function getPendingForStylist(req, res) {
+  try {
+    const data = await bookingsDao.getPendingBookingsForStylist(req.params.id);
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
+async function searchBookings(req, res) {
+  try {
+    const q = req.query.q;
+    if (!q || q.trim().length < 2) {
+      return res.status(400).json({ error: 'Search query must be at least 2 characters.' });
+    }
+    const data = await bookingsDao.searchBookings(q);
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
+async function approve(req, res) {
+  try {
+    const data = await bookingService.approveBooking(req.params.id);
+    res.json({ message: 'Booking approved', data });
+  } catch (err) {
+    const status = err.status || 500;
+    res.status(status).json({ error: err.message });
+  }
+}
+
+async function reject(req, res) {
+  try {
+    const data = await bookingService.rejectBooking(req.params.id);
+    res.json({ message: 'Booking rejected', data });
+  } catch (err) {
+    const status = err.status || 500;
+    res.status(status).json({ error: err.message });
   }
 }
 
@@ -89,4 +132,4 @@ async function exportIcs(req, res) {
   }
 }
 
-module.exports = { getAll, create, createGuest, getByCustomer, getByStylist, cancel, complete, reschedule, exportIcs };
+module.exports = { getAll, create, createGuest, getByCustomer, getByStylist, getPendingForStylist, searchBookings, approve, reject, cancel, complete, reschedule, exportIcs };

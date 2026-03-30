@@ -4,6 +4,11 @@ import { useAuth } from './AuthContext';
 import { supabase } from './lib/supabase';
 import API_URL from './config';
 
+const loginStyles = `
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500&display=swap');
+  .font-display { font-family: 'Cormorant Garamond', serif !important; }
+`;
+
 export default function Login() {
   const { signIn, signUp, user, role } = useAuth();
   const navigate = useNavigate();
@@ -112,147 +117,170 @@ export default function Login() {
     }
   };
 
+  const passwordMismatch = isSignUp && confirmPassword && confirmPassword !== password;
+
   // --- FORGOT PASSWORD FORM ---
   if (isForgotPassword) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 font-sans">
-        <div className="bg-white p-8 rounded shadow-lg w-96 border border-gray-100">
-          <h2 className="text-2xl font-light uppercase tracking-widest mb-2 text-center">Reset Password</h2>
-          <p className="text-xs text-gray-400 text-center mb-6">Enter your email and we'll send you a reset link.</p>
-          {error && <p className="bg-red-50 text-red-600 p-3 text-xs mb-4">{error}</p>}
-          {success && <p className="bg-green-50 text-green-600 p-3 text-xs mb-4">{success}</p>}
-          <form onSubmit={handleForgotPassword} className="flex flex-col gap-4">
-            <input
-              type="email"
-              placeholder="Email Address"
-              required
-              className="border p-3 text-sm focus:outline-black transition"
-              onChange={(e) => setEmail(e.target.value)}
-            />
-            <button disabled={loading} className="bg-black text-white p-3 text-xs font-bold uppercase tracking-widest hover:bg-gray-800 transition">
-              {loading ? 'Sending...' : 'Send Reset Link'}
-            </button>
-          </form>
-          <p className="text-center mt-6 text-xs text-gray-400">
-            <button onClick={() => setIsForgotPassword(false)} className="text-black underline">Back to Login</button>
-          </p>
+      <div className="min-h-screen flex items-center justify-center bg-[#FAFAF8]">
+        <style>{loginStyles}</style>
+        <div className="w-full max-w-[420px] mx-4">
+          <div className="text-center mb-10">
+            <a href="/" className="font-display text-[1.3rem] font-medium tracking-wide text-[#1A1A18] no-underline">
+              Hair by <span style={{ color: '#B8975A' }}>Amnesia</span>
+            </a>
+          </div>
+          <div className="bg-white border border-[#E4E0D8] p-8 md:p-10">
+            <h2 className="font-display text-[1.6rem] font-light text-[#1A1A18] text-center mb-2">Reset Password</h2>
+            <p className="text-[0.75rem] font-light text-[#7A7870] text-center mb-8">Enter your email and we'll send you a reset link.</p>
+            {error && <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 text-[0.78rem] font-light mb-5">{error}</div>}
+            {success && <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 text-[0.78rem] font-light mb-5">{success}</div>}
+            <form onSubmit={handleForgotPassword} className="flex flex-col gap-4">
+              <input
+                type="email"
+                placeholder="Email Address"
+                required
+                className="w-full border border-[#E4E0D8] bg-[#FAFAF8] px-4 py-3.5 text-[0.85rem] font-light text-[#1A1A18] placeholder-[#B4A894] focus:outline-none focus:border-[#B8975A] transition-colors"
+                onChange={(e) => setEmail(e.target.value)}
+              />
+              <button
+                disabled={loading}
+                className="w-full bg-[#1A1A18] text-white py-3.5 text-[0.72rem] font-medium tracking-[0.12em] uppercase hover:bg-[#B8975A] transition-colors duration-200 border-none cursor-pointer disabled:opacity-50"
+              >
+                {loading ? 'Sending...' : 'Send Reset Link'}
+              </button>
+            </form>
+            <p className="text-center mt-6 text-[0.75rem] font-light text-[#7A7870]">
+              <button onClick={() => setIsForgotPassword(false)} className="text-[#1A1A18] bg-transparent border-none cursor-pointer p-0 font-light" style={{ borderBottom: '1px solid #E4E0D8' }}>
+                Back to Login
+              </button>
+            </p>
+          </div>
         </div>
       </div>
     );
   }
 
   // --- MAIN LOGIN / SIGNUP FORM ---
-  const passwordMismatch = isSignUp && confirmPassword && confirmPassword !== password;
-
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 font-sans">
-      <div className="bg-white p-8 rounded shadow-lg w-96 border border-gray-100">
-        <h2 className="text-2xl font-light uppercase tracking-widest mb-6 text-center">
-          {isSignUp ? 'Join Us' : 'Sign In'}
-        </h2>
+    <div className="min-h-screen flex items-center justify-center bg-[#FAFAF8]">
+      <style>{loginStyles}</style>
+      <div className="w-full max-w-[420px] mx-4">
+        <div className="text-center mb-10">
+          <a href="/" className="font-display text-[1.3rem] font-medium tracking-wide text-[#1A1A18] no-underline">
+            Hair by <span style={{ color: '#B8975A' }}>Amnesia</span>
+          </a>
+        </div>
+        <div className="bg-white border border-[#E4E0D8] p-8 md:p-10">
+          <h2 className="font-display text-[1.6rem] font-light text-[#1A1A18] text-center mb-8">
+            {isSignUp ? 'Join Us' : 'Sign In'}
+          </h2>
 
-        {error && <p className="bg-red-50 text-red-600 p-3 text-xs mb-4">{error}</p>}
+          {error && <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 text-[0.78rem] font-light mb-5">{error}</div>}
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          {isSignUp && (
-            <>
-              <div>
-                <label className="text-[10px] text-gray-400 uppercase tracking-widest block mb-1">Full Name</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Jane Smith"
-                  className="w-full border p-3 text-sm focus:outline-black transition"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="text-[10px] text-gray-400 uppercase tracking-widest block mb-1">
-                  Phone Number <span className="text-gray-300">(optional)</span>
-                </label>
-                <input
-                  type="tel"
-                  placeholder="e.g. 07700 900000"
-                  className="w-full border p-3 text-sm focus:outline-black transition"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                />
-              </div>
-            </>
-          )}
-
-          <div>
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             {isSignUp && (
-              <label className="text-[10px] text-gray-400 uppercase tracking-widest block mb-1">Email Address</label>
-            )}
-            <input
-              type="email"
-              placeholder="Email Address"
-              className="w-full border p-3 text-sm focus:outline-black transition"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          </div>
+              <>
+                <div>
+                  <label className="text-[0.62rem] tracking-[0.15em] uppercase block mb-1.5" style={{ color: '#B8975A' }}>Full Name</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Jane Smith"
+                    className="w-full border border-[#E4E0D8] bg-[#FAFAF8] px-4 py-3.5 text-[0.85rem] font-light text-[#1A1A18] placeholder-[#B4A894] focus:outline-none focus:border-[#B8975A] transition-colors"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    required
+                  />
+                </div>
 
-          <div>
-            {isSignUp && (
-              <label className="text-[10px] text-gray-400 uppercase tracking-widest block mb-1">
-                Password <span className="text-gray-300">(min. 6 characters)</span>
-              </label>
+                <div>
+                  <label className="text-[0.62rem] tracking-[0.15em] uppercase block mb-1.5" style={{ color: '#B8975A' }}>
+                    Phone Number <span className="text-[#B4A894]">(optional)</span>
+                  </label>
+                  <input
+                    type="tel"
+                    placeholder="e.g. 07700 900000"
+                    className="w-full border border-[#E4E0D8] bg-[#FAFAF8] px-4 py-3.5 text-[0.85rem] font-light text-[#1A1A18] placeholder-[#B4A894] focus:outline-none focus:border-[#B8975A] transition-colors"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                  />
+                </div>
+              </>
             )}
-            <input
-              type="password"
-              placeholder="Password"
-              className="w-full border p-3 text-sm focus:outline-black transition"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={6}
-            />
-          </div>
 
-          {isSignUp && (
             <div>
-              <label className="text-[10px] text-gray-400 uppercase tracking-widest block mb-1">Confirm Password</label>
+              {isSignUp && (
+                <label className="text-[0.62rem] tracking-[0.15em] uppercase block mb-1.5" style={{ color: '#B8975A' }}>Email Address</label>
+              )}
               <input
-                type="password"
-                placeholder="Repeat password"
-                className={`w-full border p-3 text-sm focus:outline-black transition ${passwordMismatch ? 'border-red-300' : ''}`}
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
+                type="email"
+                placeholder="Email Address"
+                className="w-full border border-[#E4E0D8] bg-[#FAFAF8] px-4 py-3.5 text-[0.85rem] font-light text-[#1A1A18] placeholder-[#B4A894] focus:outline-none focus:border-[#B8975A] transition-colors"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 required
               />
-              {passwordMismatch && (
-                <p className="text-xs text-red-500 mt-1">✕ Passwords do not match</p>
-              )}
             </div>
+
+            <div>
+              {isSignUp && (
+                <label className="text-[0.62rem] tracking-[0.15em] uppercase block mb-1.5" style={{ color: '#B8975A' }}>
+                  Password <span className="text-[#B4A894]">(min. 6 characters)</span>
+                </label>
+              )}
+              <input
+                type="password"
+                placeholder="Password"
+                className="w-full border border-[#E4E0D8] bg-[#FAFAF8] px-4 py-3.5 text-[0.85rem] font-light text-[#1A1A18] placeholder-[#B4A894] focus:outline-none focus:border-[#B8975A] transition-colors"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={6}
+              />
+            </div>
+
+            {isSignUp && (
+              <div>
+                <label className="text-[0.62rem] tracking-[0.15em] uppercase block mb-1.5" style={{ color: '#B8975A' }}>Confirm Password</label>
+                <input
+                  type="password"
+                  placeholder="Repeat password"
+                  className={`w-full border bg-[#FAFAF8] px-4 py-3.5 text-[0.85rem] font-light text-[#1A1A18] placeholder-[#B4A894] focus:outline-none focus:border-[#B8975A] transition-colors ${passwordMismatch ? 'border-red-300' : 'border-[#E4E0D8]'}`}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                />
+                {passwordMismatch && (
+                  <p className="text-[0.75rem] text-red-500 mt-1.5 font-light">Passwords do not match</p>
+                )}
+              </div>
+            )}
+
+            <button
+              disabled={loading || !!passwordMismatch}
+              className="w-full bg-[#1A1A18] text-white py-3.5 text-[0.72rem] font-medium tracking-[0.12em] uppercase hover:bg-[#B8975A] transition-colors duration-200 border-none cursor-pointer disabled:opacity-50 mt-2"
+            >
+              {loading ? 'Processing...' : isSignUp ? 'Create Account' : 'Login'}
+            </button>
+          </form>
+
+          {!isSignUp && (
+            <p className="text-center mt-5 text-[0.75rem] font-light text-[#7A7870]">
+              <button onClick={() => setIsForgotPassword(true)} className="text-[#1A1A18] bg-transparent border-none cursor-pointer p-0 font-light" style={{ borderBottom: '1px solid #E4E0D8' }}>
+                Forgot password?
+              </button>
+            </p>
           )}
 
-          <button
-            disabled={loading || !!passwordMismatch}
-            className="bg-black text-white p-3 text-xs font-bold uppercase tracking-widest hover:bg-gray-800 transition disabled:opacity-50"
-          >
-            {loading ? 'Processing...' : isSignUp ? 'Create Account' : 'Login'}
-          </button>
-        </form>
-
-        {!isSignUp && (
-          <p className="text-center mt-4 text-xs text-gray-400">
-            <button onClick={() => setIsForgotPassword(true)} className="text-black underline">
-              Forgot password?
-            </button>
-          </p>
-        )}
-
-        <p className="text-center mt-4 text-xs text-gray-400">
-          {isSignUp ? 'Already have an account?' : 'New client?'}{' '}
-          <button onClick={handleToggleMode} className="text-black underline font-bold">
-            {isSignUp ? 'Login' : 'Sign Up'}
-          </button>
-        </p>
+          <div className="border-t border-[#E4E0D8] mt-6 pt-6">
+            <p className="text-center text-[0.75rem] font-light text-[#7A7870]">
+              {isSignUp ? 'Already have an account?' : 'New client?'}{' '}
+              <button onClick={handleToggleMode} className="text-[#1A1A18] bg-transparent border-none cursor-pointer p-0 font-medium" style={{ borderBottom: '1px solid #B8975A' }}>
+                {isSignUp ? 'Login' : 'Sign Up'}
+              </button>
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -3,7 +3,7 @@ const supabase = require('../supabaseClient');
 async function getAllStylists() {
   const { data, error } = await supabase
     .from('stylists')
-    .select('id, name, email, price_multiplier, peak_surcharge_percent, peak_days, peak_hour_start')
+    .select('id, name, email, is_senior, price_multiplier, peak_surcharge_percent, peak_days, peak_hour_start')
     .order('name');
   if (error) throw error;
   return data;
@@ -12,7 +12,7 @@ async function getAllStylists() {
 async function getStylistById(id) {
   const { data, error } = await supabase
     .from('stylists')
-    .select('id, name, email, price_multiplier, peak_surcharge_percent, peak_days, peak_hour_start')
+    .select('id, name, email, is_senior, price_multiplier, peak_surcharge_percent, peak_days, peak_hour_start')
     .eq('id', id)
     .single();
   if (error) throw error;

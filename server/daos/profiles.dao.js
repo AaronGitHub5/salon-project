@@ -25,7 +25,8 @@ async function redeemPoints(id) {
     throw Object.assign(new Error('You need 10 visits to redeem a voucher.'), { status: 400 });
   }
 
-  await updateLoyaltyPoints(id, 0);
+  const remaining = profile.loyalty_points - 10;
+  await updateLoyaltyPoints(id, remaining);
 
   const code = 'AMNESIA10-' + Math.random().toString(36).substring(2, 7).toUpperCase();
 
@@ -36,7 +37,7 @@ async function redeemPoints(id) {
     .single();
   if (error) throw error;
 
-  return { code, discount: 10, visitsRemaining: 0, voucherId: voucher.id };
+  return { code, discount: 10, visitsRemaining: remaining, voucherId: voucher.id };
 }
 
 async function getVouchers(customerId) {

@@ -32,6 +32,17 @@ async function getStylistBookings(stylistId) {
   return data;
 }
 
+async function getPendingBookingsForStylist(stylistId) {
+  const { data, error } = await supabase
+    .from('bookings')
+    .select(`*, services(name, base_price, duration_minutes), profiles(full_name, email, phone_number), guests(full_name, email, phone_number)`)
+    .eq('stylist_id', stylistId)
+    .eq('status', 'pending')
+    .order('start_time', { ascending: true });
+  if (error) throw error;
+  return data;
+}
+
 async function getCustomerBookings(customerId) {
   const { data, error } = await supabase
     .from('bookings')
@@ -45,10 +56,58 @@ async function getCustomerBookings(customerId) {
   return data;
 }
 
-async function createBooking({ customer_id, service_id, stylist_id, start_time, end_time }) {
+async function searchBookings(query) {
+  const q = query.trim().toLowerCase();
+  const now = new Date().toISOString();
+
+  const { data: profileBookings, error: profileError } = await supabase
+    .from('bookings')
+    .select(`*, services(name), stylists(name), profiles(full_name, email, phone_number)`)
+    .in('status', ['confirmed', 'pending'])
+    .not('customer_id', 'is', null)
+    .gte('start_time', now)
+    .order('start_time', { ascending: true });
+  if (profileError) throw profileError;
+
+  const { data: guestBookings, error: guestError } = await supabase
+    .from('bookings')
+    .select(`*, services(name), stylists(name), guests(full_name, email, phone_number)`)
+    .in('status', ['confirmed', 'pending'])
+    .not('guest_id', 'is', null)
+    .gte('start_time', now)
+    .order('start_time', { ascending: true });
+  if (guestError) throw guestError;
+
+  const matchesProfile = (b) => {
+    const p = b.profiles;
+    if (!p) return false;
+    return (
+      p.full_name?.toLowerCase().includes(q) ||
+      p.email?.toLowerCase().includes(q) ||
+      p.phone_number?.toLowerCase().includes(q)
+    );
+  };
+
+  const matchesGuest = (b) => {
+    const g = b.guests;
+    if (!g) return false;
+    return (
+      g.full_name?.toLowerCase().includes(q) ||
+      g.email?.toLowerCase().includes(q) ||
+      g.phone_number?.toLowerCase().includes(q)
+    );
+  };
+
+  return [
+    ...profileBookings.filter(matchesProfile),
+    ...guestBookings.filter(matchesGuest),
+  ].sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+}
+
+async function createBooking({ customer_id, service_id, stylist_id, start_time, end_time, status = 'confirmed' }) {
   const { data, error } = await supabase
     .from('bookings')
-    .insert([{ customer_id, service_id, stylist_id, start_time, end_time, status: 'confirmed' }])
+    .insert([{ customer_id, service_id, stylist_id, start_time, end_time, status }])
     .select()
     .single();
   if (error) throw error;
@@ -60,6 +119,28 @@ async function createGuestBooking({ guest_id, service_id, stylist_id, start_time
     .from('bookings')
     .insert([{ guest_id, service_id, stylist_id, start_time, end_time, status: 'confirmed' }])
     .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+async function approveBooking(id) {
+  const { data, error } = await supabase
+    .from('bookings')
+    .update({ status: 'confirmed' })
+    .eq('id', id)
+    .select('*, services(name), profiles(email, full_name), stylists(name)')
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+async function rejectBooking(id) {
+  const { data, error } = await supabase
+    .from('bookings')
+    .update({ status: 'cancelled' })
+    .eq('id', id)
+    .select('*, services(name), profiles(email, full_name), stylists(name)')
     .single();
   if (error) throw error;
   return data;
@@ -117,9 +198,13 @@ module.exports = {
   getAllBookings,
   getBookingById,
   getStylistBookings,
+  getPendingBookingsForStylist,
   getCustomerBookings,
+  searchBookings,
   createBooking,
   createGuestBooking,
+  approveBooking,
+  rejectBooking,
   cancelBooking,
   completeBooking,
   rescheduleBooking,
