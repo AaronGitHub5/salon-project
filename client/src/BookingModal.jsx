@@ -37,11 +37,7 @@ export default function BookingModal({ service, onClose, onConfirm }) {
         .then(res => res.json())
         .then(data => {
           if (data.available && data.slots) {
-            const times = data.slots.map(s => {
-              const d = new Date(s.start);
-              return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-            });
-            setAvailableSlots(times);
+            setAvailableSlots(data.slots.map(s => s.start));
           }
           setIsLoadingSlots(false);
         })

@@ -46,10 +46,7 @@ export default function GuestBookingModal({ onClose, onConfirm }) {
         .then(res => res.json())
         .then(data => {
           if (data.available && data.slots) {
-            const times = data.slots.map(s => {
-              const d = new Date(s.start);
-              return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-            });
+            const times = data.slots.map(s => s.start);
             setAvailableSlots(times);
           }
           setIsLoadingSlots(false);
