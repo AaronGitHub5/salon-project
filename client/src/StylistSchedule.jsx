@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from './AuthContext';
+import { useToast, useConfirm } from './Notifications';
 import API_URL from './config';
 
 function getWeekStart(date) {
@@ -39,6 +40,8 @@ function groupByWeek(bookings) {
 export default function StylistSchedule() {
   const { user, session } = useAuth();
   const navigate = useNavigate();
+  const toast = useToast();
+  const confirm = useConfirm();
 
   const [activeTab, setActiveTab] = useState('schedule');
   const [myBookings, setMyBookings] = useState([]);
@@ -75,9 +78,9 @@ export default function StylistSchedule() {
           setOpenWeeks(initial);
         }
 
-        // Fetch pending if senior stylist
+        // Fetch pending if senior stylist — all pending across all stylists
         if (me.is_senior) {
-          fetchPending(me.id);
+          fetchPending();
         }
       } catch (err) {
         console.error(err);
@@ -89,10 +92,10 @@ export default function StylistSchedule() {
     fetchMySchedule();
   }, [user, session]);
 
-  const fetchPending = async (stylistId) => {
+  const fetchPending = async () => {
     setPendingLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/bookings/stylist/${stylistId}/pending`, { headers: authHeader });
+      const res = await fetch(`${API_URL}/api/bookings/pending/all`, { headers: authHeader });
       const data = await res.json();
       setPendingBookings(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -105,22 +108,27 @@ export default function StylistSchedule() {
   const toggleWeek = (key) => setOpenWeeks(prev => ({ ...prev, [key]: !prev[key] }));
 
   const handleComplete = async (bookingId) => {
-    if (!confirm('Mark job as complete? Points will be added to customer.')) return;
+    const ok = await confirm({
+      title: 'Mark job as complete?',
+      message: 'A loyalty point will be added to the customer.',
+      confirmText: 'Mark Complete',
+    });
+    if (!ok) return;
     try {
       const res = await fetch(`${API_URL}/api/bookings/${bookingId}/complete`, {
         method: 'PUT',
         headers: authHeader,
       });
       if (res.ok) {
-        alert('Job Complete! Points awarded.');
+        toast.success('Job complete. Loyalty point awarded.');
         setMyBookings(prev => prev.map(b => b.id === bookingId ? { ...b, status: 'completed' } : b));
       } else {
         const data = await res.json();
-        alert(`Error: ${data.error || 'Could not complete booking'}`);
+        toast.error(data.error || 'Could not complete booking');
       }
     } catch (err) {
       console.error(err);
-      alert('Something went wrong. Please try again.');
+      toast.error('Something went wrong. Please try again.');
     }
   };
 
@@ -131,22 +139,31 @@ export default function StylistSchedule() {
         headers: authHeader,
       });
       if (res.ok) {
-        setPendingBookings(prev => prev.filter(b => b.id !== bookingId));
-        // Add to confirmed schedule
         const approved = pendingBookings.find(b => b.id === bookingId);
-        if (approved) setMyBookings(prev => [...prev, { ...approved, status: 'confirmed' }]);
+        setPendingBookings(prev => prev.filter(b => b.id !== bookingId));
+        // Add to confirmed schedule only if it's for this stylist
+        if (approved && approved.stylist_id === stylistProfile.id) {
+          setMyBookings(prev => [...prev, { ...approved, status: 'confirmed' }]);
+        }
+        toast.success('Booking approved. Customer notified.');
       } else {
         const data = await res.json();
-        alert(`Error: ${data.error || 'Could not approve booking'}`);
+        toast.error(data.error || 'Could not approve booking');
       }
     } catch (err) {
       console.error(err);
-      alert('Something went wrong. Please try again.');
+      toast.error('Something went wrong. Please try again.');
     }
   };
 
   const handleReject = async (bookingId) => {
-    if (!confirm('Reject this booking request? The customer will be notified by email.')) return;
+    const ok = await confirm({
+      title: 'Reject booking request?',
+      message: 'The customer will be notified by email.',
+      confirmText: 'Reject',
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       const res = await fetch(`${API_URL}/api/bookings/${bookingId}/reject`, {
         method: 'PUT',
@@ -154,19 +171,20 @@ export default function StylistSchedule() {
       });
       if (res.ok) {
         setPendingBookings(prev => prev.filter(b => b.id !== bookingId));
+        toast.success('Booking rejected. Customer notified.');
       } else {
         const data = await res.json();
-        alert(`Error: ${data.error || 'Could not reject booking'}`);
+        toast.error(data.error || 'Could not reject booking');
       }
     } catch (err) {
       console.error(err);
-      alert('Something went wrong. Please try again.');
+      toast.error('Something went wrong. Please try again.');
     }
   };
 
-  if (loading) return <div className="p-10 animate-pulse">Loading...</div>;
-  if (!stylistProfile) return <div className="p-10">Access Restricted</div>;
-  if (error) return <div className="p-10 text-red-500">{error}</div>;
+  if (loading) return <div className="min-h-screen flex items-center justify-center bg-[#FAFAF8] text-[#7A7870] font-light animate-pulse">Loading...</div>;
+  if (!stylistProfile) return <div className="min-h-screen flex items-center justify-center bg-[#FAFAF8] font-display text-[1.4rem] font-light text-[#1A1A18]">Access Restricted</div>;
+  if (error) return <div className="min-h-screen flex items-center justify-center bg-[#FAFAF8] font-light" style={{ color: '#B56145' }}>{error}</div>;
 
   const weeks = groupByWeek(myBookings);
   const tabs = stylistProfile.is_senior
@@ -174,30 +192,33 @@ export default function StylistSchedule() {
     : [{ key: 'schedule', label: 'My Schedule' }];
 
   return (
-    <div className="min-h-screen bg-gray-50 font-sans p-4 md:p-6">
+    <div className="min-h-screen bg-[#FAFAF8] text-[#1A1A18] p-6 md:p-10">
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600&family=DM+Sans:wght@300;400;500&display=swap');.font-display{font-family:'Cormorant Garamond',serif !important;}`}</style>
       <div className="max-w-4xl mx-auto">
 
         {/* Header */}
-        <div className="flex justify-between items-end mb-6 border-b pb-4">
+        <div className="flex justify-between items-end mb-10 pb-5 border-b border-[#E4E0D8]">
           <div>
-            <h1 className="text-2xl md:text-3xl font-light uppercase tracking-widest text-gray-800">My Schedule</h1>
-            <p className="text-gray-500 mt-1 text-sm">Stylist: <strong>{stylistProfile.name}</strong></p>
+            <p className="text-[0.62rem] tracking-[0.2em] uppercase mb-1" style={{ color: '#B8975A' }}>Stylist Console</p>
+            <h1 className="font-display font-light text-[2rem] md:text-[2.4rem] text-[#1A1A18] leading-none">{stylistProfile.name}</h1>
+            <p className="text-[0.72rem] font-light text-[#7A7870] mt-2">Manage your upcoming appointments.</p>
           </div>
-          <button onClick={() => navigate('/app')} className="text-xs font-bold uppercase underline">Exit</button>
+          <button onClick={() => navigate('/app')} className="text-[0.72rem] font-light tracking-[0.1em] uppercase text-[#7A7870] hover:text-[#1A1A18] transition-colors bg-transparent border-none cursor-pointer p-0" style={{ borderBottom: '1px solid #E4E0D8' }}>Exit</button>
         </div>
 
         {/* Tabs — only shown for senior stylist */}
         {stylistProfile.is_senior && (
-          <div className="flex gap-4 mb-6 border-b border-gray-200">
+          <div className="flex gap-8 mb-10 border-b border-[#E4E0D8]">
             {tabs.map(({ key, label, count }) => (
               <button
                 key={key}
                 onClick={() => setActiveTab(key)}
-                className={`pb-2 px-2 text-sm font-bold uppercase tracking-widest transition ${activeTab === key ? 'border-b-2 border-black text-black' : 'text-gray-400 hover:text-gray-600'}`}
+                className={`pb-3 text-[0.72rem] tracking-[0.12em] uppercase transition-colors bg-transparent border-none cursor-pointer p-0 ${activeTab === key ? 'font-medium text-[#1A1A18]' : 'font-light text-[#7A7870] hover:text-[#1A1A18]'}`}
+                style={activeTab === key ? { borderBottom: '2px solid #B8975A', marginBottom: '-1px' } : {}}
               >
                 {label}
                 {count > 0 && (
-                  <span className="ml-2 bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">{count}</span>
+                  <span className="ml-2 text-[0.58rem] px-1.5 py-0.5" style={{ background: '#B8975A', color: '#fff' }}>{count}</span>
                 )}
               </button>
             ))}
@@ -208,10 +229,10 @@ export default function StylistSchedule() {
         {activeTab === 'pending' && (
           <div>
             {pendingLoading ? (
-              <div className="text-center py-12 text-gray-400 animate-pulse">Loading...</div>
+              <div className="text-center py-12 text-[#7A7870] font-light animate-pulse">Loading...</div>
             ) : pendingBookings.length === 0 ? (
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-16 text-center text-gray-400">
-                No pending booking requests.
+              <div className="bg-white border border-[#E4E0D8] p-16 text-center">
+                <p className="font-display text-[1.2rem] font-light text-[#7A7870]">No pending booking requests.</p>
               </div>
             ) : (
               <div className="space-y-4">
@@ -220,17 +241,18 @@ export default function StylistSchedule() {
                   const customerName = booking.profiles?.full_name || 'Unknown';
                   const customerEmail = booking.profiles?.email || null;
                   const customerPhone = booking.profiles?.phone_number || null;
+                  const stylistName = booking.stylists?.name || null;
 
                   return (
-                    <div key={booking.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
+                    <div key={booking.id} className="bg-white border border-[#E4E0D8] p-5">
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                         <div className="flex items-start gap-4">
                           {/* Time block */}
                           <div className="text-left w-20 shrink-0">
-                            <p className="text-xl font-bold font-mono leading-tight">
+                            <p className="text-[1.4rem] font-light text-[#1A1A18] leading-tight">
                               {start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </p>
-                            <p className="text-[10px] text-gray-400 uppercase mt-0.5">
+                            <p className="text-[0.62rem] tracking-[0.1em] uppercase mt-0.5" style={{ color: '#B8975A' }}>
                               {start.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}
                             </p>
                           </div>
@@ -238,20 +260,25 @@ export default function StylistSchedule() {
                           {/* Customer info */}
                           <div className="min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <h3 className="font-bold text-gray-800">{customerName}</h3>
-                              <span className="text-[10px] font-bold uppercase bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">
+                              <h3 className="font-display text-[1.1rem] font-medium text-[#1A1A18]">{customerName}</h3>
+                              <span className="text-[0.58rem] tracking-[0.12em] uppercase bg-[#FBF3E6] text-[#B8975A] border border-[#E4D5AE] px-1.5 py-0.5">
                                 Pending
                               </span>
                             </div>
-                            <p className="text-sm text-gray-500 mt-0.5">{booking.services?.name}</p>
+                            <p className="text-[0.82rem] font-light text-[#7A7870] mt-0.5">
+                              {booking.services?.name}
+                              {stylistName && stylistName !== stylistProfile.name && (
+                                <span className="ml-1 text-[#B4A894]">· with {stylistName}</span>
+                              )}
+                            </p>
                             <div className="flex flex-col gap-0.5 mt-1">
                               {customerEmail && (
-                                <a href={`mailto:${customerEmail}`} className="text-xs text-gray-400 hover:text-black transition truncate">
+                                <a href={`mailto:${customerEmail}`} className="text-[0.72rem] font-light text-[#B4A894] hover:text-[#1A1A18] transition-colors truncate">
                                   ✉ {customerEmail}
                                 </a>
                               )}
                               {customerPhone && (
-                                <a href={`tel:${customerPhone}`} className="text-xs text-gray-400 hover:text-black transition">
+                                <a href={`tel:${customerPhone}`} className="text-[0.72rem] font-light text-[#B4A894] hover:text-[#1A1A18] transition-colors">
                                   ✆ {customerPhone}
                                 </a>
                               )}
@@ -263,13 +290,14 @@ export default function StylistSchedule() {
                         <div className="flex gap-2 shrink-0">
                           <button
                             onClick={() => handleApprove(booking.id)}
-                            className="bg-black text-white text-xs font-bold uppercase px-4 py-2.5 rounded hover:bg-gray-800 transition"
+                            className="px-4 py-2.5 text-[0.68rem] font-medium tracking-[0.12em] uppercase bg-[#1A1A18] text-white border-none cursor-pointer hover:bg-[#B8975A] transition-colors"
                           >
                             ✓ Approve
                           </button>
                           <button
                             onClick={() => handleReject(booking.id)}
-                            className="border border-red-200 text-red-500 text-xs font-bold uppercase px-4 py-2.5 rounded hover:bg-red-50 transition"
+                            className="px-4 py-2.5 text-[0.68rem] font-light tracking-[0.1em] uppercase border bg-transparent cursor-pointer transition-colors"
+                            style={{ color: '#B56145', borderColor: '#E4D5AE' }}
                           >
                             ✕ Reject
                           </button>
@@ -286,8 +314,8 @@ export default function StylistSchedule() {
         {/* Schedule Tab */}
         {activeTab === 'schedule' && (
           weeks.length === 0 ? (
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-16 text-center text-gray-400">
-              No appointments found.
+            <div className="bg-white border border-[#E4E0D8] p-16 text-center">
+              <p className="font-display text-[1.2rem] font-light text-[#7A7870]">No appointments found.</p>
             </div>
           ) : (
             <div className="space-y-4">
@@ -298,36 +326,36 @@ export default function StylistSchedule() {
                 const isPast = isPastWeek(week.weekStart);
 
                 return (
-                  <div key={key} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                  <div key={key} className="bg-white border border-[#E4E0D8] overflow-hidden">
                     <button
                       onClick={() => toggleWeek(key)}
-                      className="w-full flex items-center justify-between px-4 md:px-6 py-4 hover:bg-gray-50 transition text-left"
+                      className="w-full flex items-center justify-between px-5 md:px-6 py-4 hover:bg-[#FAFAF8] transition-colors text-left bg-transparent border-none cursor-pointer"
                     >
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-sm font-bold uppercase tracking-widest text-gray-800">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <span className="font-display text-[1.1rem] font-medium text-[#1A1A18]">
                           {week.label}
                         </span>
                         {isCurrent && (
-                          <span className="text-[10px] font-bold uppercase bg-black text-white px-2 py-0.5 rounded">
+                          <span className="text-[0.58rem] tracking-[0.12em] uppercase px-2 py-0.5" style={{ background: '#B8975A', color: '#fff' }}>
                             This Week
                           </span>
                         )}
                         {isPast && (
-                          <span className="text-[10px] font-bold uppercase bg-gray-100 text-gray-400 px-2 py-0.5 rounded">
+                          <span className="text-[0.58rem] tracking-[0.12em] uppercase bg-[#F0EDE5] text-[#7A7870] px-2 py-0.5">
                             Past
                           </span>
                         )}
                       </div>
-                      <div className="flex items-center gap-2 shrink-0 ml-2">
-                        <span className="text-xs text-gray-400 hidden sm:block">
+                      <div className="flex items-center gap-3 shrink-0 ml-2">
+                        <span className="text-[0.72rem] font-light text-[#7A7870] hidden sm:block">
                           {week.bookings.length} appointment{week.bookings.length !== 1 ? 's' : ''}
                         </span>
-                        <span className={`text-gray-400 text-xs transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}>▼</span>
+                        <span className={`text-[#B4A894] text-xs transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}>▼</span>
                       </div>
                     </button>
 
                     {isOpen && (
-                      <div className="border-t border-gray-100">
+                      <div className="border-t border-[#E4E0D8]">
                         {week.bookings.map((booking) => {
                           const start = new Date(booking.start_time);
                           const customerName = booking.profiles?.full_name || booking.guests?.full_name || 'Guest';
@@ -338,54 +366,54 @@ export default function StylistSchedule() {
                           return (
                             <div
                               key={booking.id}
-                              className="border-b last:border-0 border-gray-100 px-4 md:px-6 py-4 hover:bg-gray-50 transition"
+                              className="border-b last:border-0 border-[#E4E0D8] px-5 md:px-6 py-4 hover:bg-[#FAFAF8] transition-colors"
                             >
                               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                                 <div className="flex items-start gap-4">
                                   <div className="text-left w-20 shrink-0">
-                                    <p className="text-xl font-bold font-mono leading-tight">
+                                    <p className="text-[1.4rem] font-light text-[#1A1A18] leading-tight">
                                       {start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                     </p>
-                                    <p className="text-[10px] text-gray-400 uppercase mt-0.5">
+                                    <p className="text-[0.62rem] tracking-[0.1em] uppercase mt-0.5" style={{ color: '#B8975A' }}>
                                       {start.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}
                                     </p>
                                   </div>
                                   <div className="min-w-0">
                                     <div className="flex items-center gap-2 flex-wrap">
-                                      <h3 className="font-bold text-gray-800">{customerName}</h3>
+                                      <h3 className="font-display text-[1.1rem] font-medium text-[#1A1A18]">{customerName}</h3>
                                       {isGuest && (
-                                        <span className="text-[10px] font-bold uppercase bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded">
+                                        <span className="text-[0.58rem] tracking-[0.12em] uppercase bg-[#F0EDE5] text-[#7A7870] px-1.5 py-0.5">
                                           Guest
                                         </span>
                                       )}
                                     </div>
-                                    <p className="text-sm text-gray-500 mt-0.5">{booking.services?.name}</p>
+                                    <p className="text-[0.82rem] font-light text-[#7A7870] mt-0.5">{booking.services?.name}</p>
                                     <div className="flex flex-col gap-0.5 mt-1">
                                       {customerEmail && (
-                                        <a href={`mailto:${customerEmail}`} className="text-xs text-gray-400 hover:text-black transition truncate">
+                                        <a href={`mailto:${customerEmail}`} className="text-[0.72rem] font-light text-[#B4A894] hover:text-[#1A1A18] transition-colors truncate">
                                           ✉ {customerEmail}
                                         </a>
                                       )}
                                       {customerPhone && (
-                                        <a href={`tel:${customerPhone}`} className="text-xs text-gray-400 hover:text-black transition">
+                                        <a href={`tel:${customerPhone}`} className="text-[0.72rem] font-light text-[#B4A894] hover:text-[#1A1A18] transition-colors">
                                           ✆ {customerPhone}
                                         </a>
                                       )}
                                       {!customerEmail && !customerPhone && (
-                                        <p className="text-xs text-gray-300 italic">No contact details</p>
+                                        <p className="text-[0.72rem] font-light text-[#D4CFC2] italic">No contact details</p>
                                       )}
                                     </div>
                                   </div>
                                 </div>
                                 <div className="shrink-0 sm:ml-4">
                                   {booking.status === 'completed' ? (
-                                    <span className="inline-flex items-center text-green-600 border border-green-200 bg-green-50 text-xs font-bold px-3 py-2 rounded uppercase w-full sm:w-auto justify-center">
+                                    <span className="inline-flex items-center text-[0.62rem] tracking-[0.12em] uppercase font-medium px-3 py-2 w-full sm:w-auto justify-center" style={{ color: '#B8975A', border: '1px solid #B8975A', background: 'rgba(184,151,90,0.08)' }}>
                                       ✓ Completed
                                     </span>
                                   ) : (
                                     <button
                                       onClick={() => handleComplete(booking.id)}
-                                      className="w-full sm:w-auto bg-black text-white text-xs font-bold uppercase px-4 py-2.5 rounded hover:bg-gray-800 transition shadow-sm"
+                                      className="w-full sm:w-auto px-4 py-2.5 text-[0.68rem] font-medium tracking-[0.12em] uppercase bg-[#1A1A18] text-white border-none cursor-pointer hover:bg-[#B8975A] transition-colors"
                                     >
                                       Complete Job
                                     </button>

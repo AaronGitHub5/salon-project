@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import { supabase } from './lib/supabase';
+import { useToast } from './Notifications';
 import API_URL from './config';
 
 const loginStyles = `
@@ -12,6 +13,7 @@ const loginStyles = `
 export default function Login() {
   const { signIn, signUp, user, role } = useAuth();
   const navigate = useNavigate();
+  const toast = useToast();
   const [searchParams] = useSearchParams();
   const reviewParam = searchParams.get('review');
 
@@ -79,7 +81,7 @@ export default function Login() {
           }
           return;
         }
-        alert('Account created! Please check your email to verify your account before logging in.');
+        toast.success('Account created! Please check your email to verify your account before logging in.');
       } else {
         const { error } = await signIn({ email, password });
         if (error) {

@@ -30,6 +30,16 @@ async function getPendingReviews() {
   return data;
 }
 
+async function getApprovedReviews() {
+  const { data, error } = await supabase
+    .from('reviews')
+    .select('id, rating, comment, created_at, profiles(full_name), stylists(name)')
+    .eq('approved', true)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data;
+}
+
 async function approveReview(id) {
   const { data, error } = await supabase
     .from('reviews')
@@ -41,8 +51,15 @@ async function approveReview(id) {
   return data;
 }
 
+async function deleteReview(id) {
+  const { error } = await supabase
+    .from('reviews')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
+}
+
 async function getReviewsSummary(limit = 6) {
-  // Only approved reviews shown publicly
   const { data: reviews, error: reviewsError } = await supabase
     .from('reviews')
     .select('rating, comment, created_at, profiles(full_name), stylists(name)')
@@ -71,6 +88,8 @@ module.exports = {
   createReview,
   getReviewByBookingId,
   getPendingReviews,
+  getApprovedReviews,
   approveReview,
+  deleteReview,
   getReviewsSummary,
 };

@@ -1,12 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from './AuthContext';
+import { useToast, useConfirm } from './Notifications';
 import GuestBookingModal from './GuestBookingModal';
 import AdminAnalytics from './AdminAnalytics';
 import AdminStylists from './AdminStylists';
 import API_URL from './config';
 
 function VoucherLookup({ authHeader }) {
+  const toast = useToast();
+  const confirm = useConfirm();
   const [code, setCode] = useState('');
   const [voucher, setVoucher] = useState(null);
   const [error, setError] = useState('');
@@ -37,7 +40,12 @@ function VoucherLookup({ authHeader }) {
   };
 
   const handleMarkUsed = async () => {
-    if (!confirm('Mark this voucher as used? This cannot be undone.')) return;
+    const ok = await confirm({
+      title: 'Mark voucher as used?',
+      message: 'This cannot be undone.',
+      confirmText: 'Mark as Used',
+    });
+    if (!ok) return;
     try {
       const res = await fetch(`${API_URL}/api/profiles/vouchers/${voucher.id}/use`, {
         method: 'PATCH',
@@ -47,10 +55,10 @@ function VoucherLookup({ authHeader }) {
         setVoucher(prev => ({ ...prev, used: true }));
         setMarked(true);
       } else {
-        alert('Failed to mark voucher as used.');
+        toast.error('Failed to mark voucher as used.');
       }
     } catch (err) {
-      alert('Something went wrong.');
+      toast.error('Something went wrong.');
     }
   };
 
@@ -63,8 +71,8 @@ function VoucherLookup({ authHeader }) {
 
   return (
     <div className="max-w-lg mx-auto">
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
-        <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-6">Voucher Validator</h2>
+      <div className="bg-white border border-[#E4E0D8] p-8">
+        <p className="text-[0.62rem] tracking-[0.15em] uppercase mb-6" style={{ color: '#B8975A' }}>Voucher Validator</p>
 
         <form onSubmit={handleLookup} className="flex gap-3 mb-6">
           <input
@@ -72,52 +80,52 @@ function VoucherLookup({ authHeader }) {
             value={code}
             onChange={e => setCode(e.target.value.toUpperCase())}
             placeholder="AMNESIA10-XXXXX"
-            className="flex-1 border p-3 rounded bg-gray-50 font-mono text-sm uppercase focus:outline-black"
+            className="flex-1 border border-[#E4E0D8] p-3 bg-[#FAFAF8] font-mono text-[0.8rem] uppercase focus:outline-none focus:border-[#B8975A]"
             required
           />
           <button
             disabled={loading}
-            className="bg-black text-white px-6 py-3 rounded text-xs font-bold uppercase tracking-widest hover:bg-gray-800 disabled:opacity-50 transition"
+            className="px-6 py-3 text-[0.72rem] font-medium tracking-[0.12em] uppercase bg-[#1A1A18] text-white border-none cursor-pointer hover:bg-[#B8975A] disabled:opacity-50 transition-colors"
           >
             {loading ? '...' : 'Lookup'}
           </button>
         </form>
 
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded p-4 text-center">
-            <p className="text-red-600 text-sm font-bold">❌ {error}</p>
+          <div className="border border-[#E4D5AE] bg-[#FBF3E6] p-4 text-center">
+            <p className="text-[0.8rem] font-light" style={{ color: '#B56145' }}>{error}</p>
           </div>
         )}
 
         {voucher && (
-          <div className={`rounded-lg border-2 p-6 ${voucher.used ? 'border-gray-200 bg-gray-50' : 'border-black bg-white'}`}>
+          <div className={`border p-6 ${voucher.used ? 'border-[#E4E0D8] bg-[#F5F2EB]' : 'border-[#B8975A] bg-white'}`}>
             <div className="flex justify-between items-start mb-4">
-              <span className={`text-xs font-bold uppercase px-3 py-1 rounded ${voucher.used ? 'bg-gray-200 text-gray-500' : 'bg-black text-white'}`}>
+              <span className={`text-[0.62rem] tracking-[0.12em] uppercase px-3 py-1 ${voucher.used ? 'bg-[#E4E0D8] text-[#7A7870]' : 'bg-[#1A1A18] text-white'}`}>
                 {voucher.used ? 'Already Used' : `${voucher.discount}% Discount`}
               </span>
-              <span className="text-[10px] text-gray-400">
+              <span className="text-[0.65rem] font-light text-[#B4A894]">
                 Issued {new Date(voucher.created_at).toLocaleDateString('en-GB')}
               </span>
             </div>
-            <p className={`font-mono font-bold text-2xl mb-4 ${voucher.used ? 'text-gray-400 line-through' : 'text-black'}`}>
+            <p className={`font-display text-[1.8rem] font-light mb-4 ${voucher.used ? 'text-[#B4A894] line-through' : 'text-[#1A1A18]'}`}>
               {voucher.code}
             </p>
-            <div className="bg-gray-50 rounded p-4 mb-4">
-              <p className="text-[10px] text-gray-400 uppercase tracking-widest mb-1">Customer</p>
-              <p className="font-bold text-gray-800">{voucher.profiles?.full_name}</p>
-              <p className="text-sm text-gray-500">{voucher.profiles?.email}</p>
+            <div className="bg-[#FAFAF8] border border-[#E4E0D8] p-4 mb-4">
+              <p className="text-[0.6rem] tracking-[0.15em] uppercase mb-1" style={{ color: '#B8975A' }}>Customer</p>
+              <p className="font-display text-[1.05rem] font-medium text-[#1A1A18]">{voucher.profiles?.full_name}</p>
+              <p className="text-[0.78rem] font-light text-[#7A7870]">{voucher.profiles?.email}</p>
             </div>
             {marked ? (
-              <div className="bg-green-50 border border-green-200 rounded p-4 text-center">
-                <p className="text-green-700 font-bold text-sm">✓ Voucher marked as used</p>
-                <button onClick={handleReset} className="mt-3 text-xs text-gray-400 underline hover:text-black">
+              <div className="border border-[#B8975A] bg-[rgba(184,151,90,0.08)] p-4 text-center">
+                <p className="text-[0.8rem] font-medium" style={{ color: '#B8975A' }}>✓ Voucher marked as used</p>
+                <button onClick={handleReset} className="mt-3 text-[0.68rem] tracking-[0.1em] uppercase text-[#7A7870] hover:text-[#1A1A18] bg-transparent border-none cursor-pointer" style={{ borderBottom: '1px solid #E4E0D8' }}>
                   Look up another voucher
                 </button>
               </div>
             ) : voucher.used ? (
-              <div className="bg-red-50 border border-red-200 rounded p-4 text-center">
-                <p className="text-red-600 font-bold text-sm">This voucher has already been used</p>
-                <button onClick={handleReset} className="mt-3 text-xs text-gray-400 underline hover:text-black">
+              <div className="border border-[#E4E0D8] bg-[#FAFAF8] p-4 text-center">
+                <p className="text-[0.8rem] font-light text-[#7A7870]">This voucher has already been used</p>
+                <button onClick={handleReset} className="mt-3 text-[0.68rem] tracking-[0.1em] uppercase text-[#7A7870] hover:text-[#1A1A18] bg-transparent border-none cursor-pointer" style={{ borderBottom: '1px solid #E4E0D8' }}>
                   Look up another voucher
                 </button>
               </div>
@@ -125,13 +133,13 @@ function VoucherLookup({ authHeader }) {
               <div className="flex gap-3">
                 <button
                   onClick={handleMarkUsed}
-                  className="flex-1 bg-green-600 text-white py-3 rounded text-xs font-bold uppercase tracking-widest hover:bg-green-700 transition"
+                  className="flex-1 py-3 text-[0.72rem] font-medium tracking-[0.12em] uppercase bg-[#1A1A18] text-white border-none cursor-pointer hover:bg-[#B8975A] transition-colors"
                 >
                   ✓ Mark as Used
                 </button>
                 <button
                   onClick={handleReset}
-                  className="px-4 py-3 border border-gray-200 rounded text-xs font-bold uppercase text-gray-500 hover:bg-gray-50 transition"
+                  className="px-5 py-3 text-[0.68rem] font-light tracking-[0.1em] uppercase text-[#7A7870] border border-[#E4E0D8] bg-transparent cursor-pointer hover:text-[#1A1A18] hover:border-[#1A1A18] transition-colors"
                 >
                   Cancel
                 </button>
@@ -145,33 +153,28 @@ function VoucherLookup({ authHeader }) {
 }
 
 function CancelBooking({ authHeader }) {
+  const toast = useToast();
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [allBookings, setAllBookings] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [cancellingId, setCancellingId] = useState(null);
   const [confirmId, setConfirmId] = useState(null);
-  const debounceRef = useRef(null);
 
-  const handleSearch = async (value) => {
-    if (value.trim().length < 2) {
-      setResults([]);
-      setError('');
-      return;
-    }
+  useEffect(() => { fetchAllBookings(); }, []);
+
+  const fetchAllBookings = async () => {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(`${API_URL}/api/bookings/search?q=${encodeURIComponent(value.trim())}`, {
-        headers: authHeader,
-      });
+      const res = await fetch(`${API_URL}/api/bookings`, { headers: authHeader });
       const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || 'Search failed.');
-        setResults([]);
-      } else {
-        setResults(Array.isArray(data) ? data : []);
-      }
+      if (!res.ok) { setError(data.error || 'Failed to load bookings.'); return; }
+      const now = new Date();
+      const upcoming = (Array.isArray(data) ? data : [])
+        .filter(b => ['confirmed', 'pending'].includes(b.status) && new Date(b.start_time) >= now)
+        .sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+      setAllBookings(upcoming);
     } catch (err) {
       setError('Something went wrong.');
     } finally {
@@ -179,12 +182,15 @@ function CancelBooking({ authHeader }) {
     }
   };
 
-  const handleInputChange = (e) => {
-    const value = e.target.value;
-    setQuery(value);
-    clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => handleSearch(value), 400);
-  };
+  const filtered = query.trim().length < 1 ? allBookings : allBookings.filter(b => {
+    const q = query.trim().toLowerCase();
+    const name = (b.profiles?.full_name || b.guests?.full_name || '').toLowerCase();
+    const email = (b.profiles?.email || b.guests?.email || '').toLowerCase();
+    const phone = (b.profiles?.phone_number || b.guests?.phone_number || '').toLowerCase();
+    const service = (b.services?.name || '').toLowerCase();
+    const stylist = (b.stylists?.name || '').toLowerCase();
+    return name.includes(q) || email.includes(q) || phone.includes(q) || service.includes(q) || stylist.includes(q);
+  });
 
   const handleCancel = async (bookingId) => {
     setCancellingId(bookingId);
@@ -194,14 +200,15 @@ function CancelBooking({ authHeader }) {
         headers: authHeader,
       });
       if (res.ok) {
-        setResults(prev => prev.filter(b => b.id !== bookingId));
+        setAllBookings(prev => prev.filter(b => b.id !== bookingId));
         setConfirmId(null);
+        toast.success('Booking cancelled. Customer notified.');
       } else {
         const data = await res.json();
-        alert(data.error || 'Failed to cancel booking.');
+        toast.error(data.error || 'Failed to cancel booking.');
       }
     } catch (err) {
-      alert('Something went wrong.');
+      toast.error('Something went wrong.');
     } finally {
       setCancellingId(null);
     }
@@ -209,101 +216,111 @@ function CancelBooking({ authHeader }) {
 
   return (
     <div className="max-w-2xl mx-auto">
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
-        <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2">Cancel Customer Booking</h2>
-        <p className="text-sm text-gray-500 mb-6">Search by customer name, email, or phone number.</p>
+      <div className="bg-white border border-[#E4E0D8] p-8">
+        <p className="text-[0.62rem] tracking-[0.15em] uppercase mb-1" style={{ color: '#B8975A' }}>Cancellations</p>
+        <h2 className="font-display text-[1.4rem] font-light text-[#1A1A18] mb-1">Manage Bookings</h2>
+        <p className="text-[0.78rem] font-light text-[#7A7870] mb-6">All upcoming bookings shown below. Use the search to filter by name, email, phone, service, or stylist.</p>
 
         <div className="relative mb-6">
           <input
             type="text"
             value={query}
-            onChange={handleInputChange}
-            placeholder="e.g. Sarah, sarah@email.com, 07700..."
-            className="w-full border p-3 rounded bg-gray-50 text-sm focus:outline-black pr-10"
+            onChange={e => setQuery(e.target.value)}
+            placeholder="Filter bookings..."
+            className="w-full border border-[#E4E0D8] p-3 bg-[#FAFAF8] text-[0.85rem] font-light focus:outline-none focus:border-[#B8975A] pr-10"
           />
-          {loading && (
-            <div className="absolute right-3 top-3.5 w-4 h-4 border-2 border-gray-300 border-t-black rounded-full animate-spin" />
+          {query && (
+            <button onClick={() => setQuery('')} className="absolute right-3 top-3 text-[#B4A894] hover:text-[#1A1A18] bg-transparent border-none cursor-pointer text-sm">✕</button>
           )}
         </div>
 
+        {loading && (
+          <div className="text-center py-12 text-[#7A7870] font-light animate-pulse">Loading bookings...</div>
+        )}
+
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded p-4 mb-4">
-            <p className="text-red-600 text-sm">{error}</p>
+          <div className="border border-[#E4D5AE] bg-[#FBF3E6] p-4 mb-4">
+            <p className="text-[0.78rem] font-light" style={{ color: '#B56145' }}>{error}</p>
           </div>
         )}
 
-        {query.trim().length >= 2 && !loading && results.length === 0 && !error && (
-          <div className="text-center py-10 text-gray-400 text-sm">
-            No active bookings found for "{query}".
+        {!loading && !error && filtered.length === 0 && (
+          <div className="text-center py-10 text-[0.82rem] font-light text-[#7A7870]">
+            {query ? `No bookings match "${query}".` : 'No upcoming bookings.'}
           </div>
         )}
 
-        {results.length > 0 && (
-          <div className="space-y-3">
-            {results.map((booking) => {
-              const customerName = booking.profiles?.full_name || booking.guests?.full_name || 'Guest';
-              const customerEmail = booking.profiles?.email || booking.guests?.email || null;
-              const customerPhone = booking.profiles?.phone_number || booking.guests?.phone_number || null;
-              const start = new Date(booking.start_time);
-              const isConfirming = confirmId === booking.id;
-              const isCancelling = cancellingId === booking.id;
+        {!loading && filtered.length > 0 && (
+          <>
+            <p className="text-[0.65rem] font-light text-[#B4A894] mb-3">{filtered.length} upcoming booking{filtered.length !== 1 ? 's' : ''}{query ? ' matching filter' : ''}</p>
+            <div className="space-y-3">
+              {filtered.map((booking) => {
+                const customerName = booking.profiles?.full_name || booking.guests?.full_name || 'Guest';
+                const customerEmail = booking.profiles?.email || booking.guests?.email || null;
+                const customerPhone = booking.profiles?.phone_number || booking.guests?.phone_number || null;
+                const start = new Date(booking.start_time);
+                const isConfirming = confirmId === booking.id;
+                const isCancelling = cancellingId === booking.id;
 
-              return (
-                <div key={booking.id} className="border border-gray-200 rounded-lg p-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                    <div>
-                      <div className="flex items-center gap-2 flex-wrap mb-1">
-                        <span className="font-bold text-gray-800">{customerName}</span>
-                        <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${
-                          booking.status === 'pending'
-                            ? 'bg-amber-100 text-amber-700'
-                            : 'bg-green-100 text-green-700'
-                        }`}>
-                          {booking.status}
-                        </span>
-                        {!booking.profiles && (
-                          <span className="text-[10px] font-bold uppercase bg-gray-100 text-gray-400 px-2 py-0.5 rounded">Guest</span>
+                return (
+                  <div key={booking.id} className="border border-[#E4E0D8] p-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <span className="font-display text-[1.05rem] font-medium text-[#1A1A18]">{customerName}</span>
+                          <span className={`text-[0.58rem] tracking-[0.12em] uppercase px-2 py-0.5 ${
+                            booking.status === 'pending'
+                              ? 'bg-[#FBF3E6] text-[#B8975A] border border-[#E4D5AE]'
+                              : 'bg-[#F0EDE5] text-[#1A1A18]'
+                          }`}>
+                            {booking.status}
+                          </span>
+                          {!booking.profiles && (
+                            <span className="text-[0.58rem] tracking-[0.12em] uppercase bg-[#F0EDE5] text-[#7A7870] px-2 py-0.5">Guest</span>
+                          )}
+                        </div>
+                        <p className="text-[0.78rem] font-light text-[#7A7870]">{booking.services?.name} — {booking.stylists?.name}</p>
+                        <p className="text-[0.7rem] font-light text-[#B4A894] mt-0.5">
+                          {start.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })} at {start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                        {customerEmail && <p className="text-[0.7rem] font-light text-[#B4A894] mt-0.5">✉ {customerEmail}</p>}
+                        {customerPhone && <p className="text-[0.7rem] font-light text-[#B4A894]">✆ {customerPhone}</p>}
+                      </div>
+
+                      <div className="shrink-0">
+                        {isConfirming ? (
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleCancel(booking.id)}
+                              disabled={isCancelling}
+                              className="px-4 py-2 text-[0.68rem] font-medium tracking-[0.12em] uppercase text-white border-none cursor-pointer transition-colors disabled:opacity-50"
+                              style={{ background: '#B56145' }}
+                            >
+                              {isCancelling ? '...' : 'Confirm Cancel'}
+                            </button>
+                            <button
+                              onClick={() => setConfirmId(null)}
+                              className="px-4 py-2 text-[0.68rem] font-light tracking-[0.1em] uppercase text-[#7A7870] border border-[#E4E0D8] bg-transparent cursor-pointer hover:text-[#1A1A18] hover:border-[#1A1A18] transition-colors"
+                            >
+                              Back
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setConfirmId(booking.id)}
+                            className="px-4 py-2 text-[0.68rem] font-light tracking-[0.1em] uppercase border bg-transparent cursor-pointer transition-colors"
+                            style={{ color: '#B56145', borderColor: '#E4D5AE' }}
+                          >
+                            Cancel Booking
+                          </button>
                         )}
                       </div>
-                      <p className="text-sm text-gray-600">{booking.services?.name} — {booking.stylists?.name}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">
-                        {start.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })} at {start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </p>
-                      {customerEmail && <p className="text-xs text-gray-400 mt-0.5">✉ {customerEmail}</p>}
-                      {customerPhone && <p className="text-xs text-gray-400">✆ {customerPhone}</p>}
-                    </div>
-
-                    <div className="shrink-0">
-                      {isConfirming ? (
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleCancel(booking.id)}
-                            disabled={isCancelling}
-                            className="bg-red-600 text-white text-xs font-bold uppercase px-4 py-2 rounded hover:bg-red-700 transition disabled:opacity-50"
-                          >
-                            {isCancelling ? '...' : 'Confirm Cancel'}
-                          </button>
-                          <button
-                            onClick={() => setConfirmId(null)}
-                            className="border border-gray-200 text-gray-500 text-xs font-bold uppercase px-4 py-2 rounded hover:bg-gray-50 transition"
-                          >
-                            Back
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => setConfirmId(booking.id)}
-                          className="border border-red-200 text-red-500 text-xs font-bold uppercase px-4 py-2 rounded hover:bg-red-50 transition"
-                        >
-                          Cancel Booking
-                        </button>
-                      )}
                     </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          </>
         )}
       </div>
     </div>
@@ -313,17 +330,23 @@ function CancelBooking({ authHeader }) {
 export default function AdminDashboard() {
   const { user, session, signOut } = useAuth();
   const navigate = useNavigate();
+  const toast = useToast();
+  const confirm = useConfirm();
 
   const [activeTab, setActiveTab] = useState('analytics');
   const [services, setServices] = useState([]);
+  const [inactiveServices, setInactiveServices] = useState([]);
   const [formData, setFormData] = useState({ name: '', price: '', duration: 60, category: 'Cutting & Styling' });
   const [editingId, setEditingId] = useState(null);
   const [refresh, setRefresh] = useState(0);
   const [showGuestModal, setShowGuestModal] = useState(false);
   const [guestBookingSuccess, setGuestBookingSuccess] = useState(false);
+  const [successMessage, setSuccessMessage] = useState({ title: '', subtitle: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pendingReviews, setPendingReviews] = useState([]);
+  const [approvedReviews, setApprovedReviews] = useState([]);
   const [reviewsLoading, setReviewsLoading] = useState(false);
+  const [showInactive, setShowInactive] = useState(false);
 
   const authHeader = {
     Authorization: `Bearer ${session?.access_token}`,
@@ -337,6 +360,34 @@ export default function AdminDashboard() {
       .catch((err) => console.error('Error fetching services:', err));
   }, [refresh]);
 
+  // Load inactive services when the services tab is active
+  useEffect(() => {
+    if (activeTab !== 'services') return;
+    fetch(`${API_URL}/api/services/inactive`, { headers: authHeader })
+      .then((res) => res.json())
+      .then((data) => setInactiveServices(Array.isArray(data) ? data : []))
+      .catch((err) => console.error('Error fetching inactive services:', err));
+  }, [activeTab, refresh]);
+
+  const handleRestore = async (id) => {
+    try {
+      const res = await fetch(`${API_URL}/api/services/${id}/restore`, {
+        method: 'PUT',
+        headers: authHeader,
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        toast.error(body.error || 'Failed to restore service.');
+        return;
+      }
+      toast.success('Service restored to menu.');
+      setRefresh((p) => p + 1);
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to restore service.');
+    }
+  };
+
   useEffect(() => {
     if (activeTab === 'reviews') fetchPendingReviews();
   }, [activeTab]);
@@ -344,9 +395,14 @@ export default function AdminDashboard() {
   const fetchPendingReviews = async () => {
     setReviewsLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/reviews/pending`, { headers: authHeader });
-      const data = await res.json();
-      setPendingReviews(Array.isArray(data) ? data : []);
+      const [pendingRes, approvedRes] = await Promise.all([
+        fetch(`${API_URL}/api/reviews/pending`, { headers: authHeader }),
+        fetch(`${API_URL}/api/reviews/approved`, { headers: authHeader }),
+      ]);
+      const pendingData = await pendingRes.json();
+      const approvedData = await approvedRes.json();
+      setPendingReviews(Array.isArray(pendingData) ? pendingData : []);
+      setApprovedReviews(Array.isArray(approvedData) ? approvedData : []);
     } catch (err) {
       console.error(err);
     } finally {
@@ -362,12 +418,39 @@ export default function AdminDashboard() {
       });
       if (res.ok) {
         setPendingReviews(prev => prev.filter(r => r.id !== id));
+        toast.success('Review approved.');
       } else {
-        alert('Failed to approve review.');
+        toast.error('Failed to approve review.');
       }
     } catch (err) {
       console.error(err);
-      alert('Something went wrong.');
+      toast.error('Something went wrong.');
+    }
+  };
+
+  const handleDeleteReview = async (id) => {
+    const ok = await confirm({
+      title: 'Delete this review?',
+      message: 'This review will be permanently removed.',
+      confirmText: 'Delete',
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      const res = await fetch(`${API_URL}/api/reviews/${id}`, {
+        method: 'DELETE',
+        headers: authHeader,
+      });
+      if (res.ok) {
+        setPendingReviews(prev => prev.filter(r => r.id !== id));
+        setApprovedReviews(prev => prev.filter(r => r.id !== id));
+        toast.success('Review deleted.');
+      } else {
+        toast.error('Failed to delete review.');
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('Something went wrong.');
     }
   };
 
@@ -384,38 +467,54 @@ export default function AdminDashboard() {
         headers: authHeader,
         body: JSON.stringify({ name: formData.name, base_price: price, duration_minutes: duration, category: formData.category }),
       });
+      toast.success(editingId ? 'Service updated.' : 'Service created.');
       setEditingId(null);
       setFormData({ name: '', price: '', duration: 60, category: 'Cutting & Styling' });
       setRefresh(p => p + 1);
     } catch (err) {
       console.error(err);
-      alert('Something went wrong. Please try again.');
+      toast.error('Something went wrong. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleDelete = async (id) => {
-    if (!confirm('Delete service?')) return;
+    const ok = await confirm({
+      title: 'Delete service?',
+      message: 'This will remove the service from the menu. Existing bookings will still show it.',
+      confirmText: 'Delete',
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       const res = await fetch(`${API_URL}/api/services/${id}`, { method: 'DELETE', headers: authHeader });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        if (body.error && body.error.includes('bookings')) {
-          alert('This service has bookings attached to it and cannot be deleted.');
-        } else {
-          alert(body.error || 'Failed to delete service.');
-        }
+        toast.error(body.error || 'Failed to delete service.');
         return;
       }
+      toast.success('Service removed from menu.');
       setRefresh(p => p + 1);
     } catch (err) {
       console.error(err);
-      alert('Failed to delete service.');
+      toast.error('Failed to delete service.');
     }
   };
 
   const handleGuestBooking = async (bookingData) => {
+    // Customer booking — already created by GuestBookingModal via POST /api/bookings
+    if (bookingData._customerBooking) {
+      setShowGuestModal(false);
+      setSuccessMessage({
+        title: 'Customer Booking Made',
+        subtitle: `Booked for ${bookingData.customerName}. Confirmation email sent${bookingData.customerEmail ? ` to ${bookingData.customerEmail}` : ''}.`,
+      });
+      setGuestBookingSuccess(true);
+      return;
+    }
+
+    // Original guest flow — POST /api/bookings/guest
     try {
       const res = await fetch(`${API_URL}/api/bookings/guest`, {
         method: 'POST',
@@ -424,14 +523,18 @@ export default function AdminDashboard() {
       });
       if (res.ok) {
         setShowGuestModal(false);
+        setSuccessMessage({
+          title: 'Guest Booking Made',
+          subtitle: 'The booking has been confirmed and the customer will receive an email if one was provided.',
+        });
         setGuestBookingSuccess(true);
       } else {
         const err = await res.json().catch(() => ({}));
-        alert(`Failed to create booking: ${err.error || res.status}`);
+        toast.error(`Failed to create booking: ${err.error || res.status}`);
       }
     } catch (err) {
       console.error(err);
-      alert('Something went wrong. Please try again.');
+      toast.error('Something went wrong. Please try again.');
     }
   };
 
@@ -452,35 +555,38 @@ export default function AdminDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 font-sans p-8">
-      <header className="flex justify-between items-center mb-8 bg-white p-4 shadow-sm rounded-lg border-l-4 border-black">
+    <div className="min-h-screen bg-[#FAFAF8] text-[#1A1A18] p-6 md:p-10">
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600&family=DM+Sans:wght@300;400;500&display=swap');.font-display{font-family:'Cormorant Garamond',serif !important;}`}</style>
+      <header className="flex justify-between items-center mb-10 pb-5 border-b border-[#E4E0D8]">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800 uppercase tracking-wide">Admin Control Panel</h1>
-          <p className="text-xs text-gray-500">Logged in as {user?.email}</p>
+          <p className="text-[0.62rem] tracking-[0.2em] uppercase mb-1" style={{ color: '#B8975A' }}>Admin Console</p>
+          <h1 className="font-display font-light text-[2rem] md:text-[2.4rem] text-[#1A1A18] leading-none">Control Panel</h1>
+          <p className="text-[0.72rem] font-light text-[#7A7870] mt-2">Signed in as {user?.email}</p>
         </div>
-        <div className="flex gap-4">
-          <button onClick={() => navigate('/app')} className="text-sm bg-gray-100 px-4 py-2 rounded hover:bg-gray-200">← Back to Site</button>
-          <button onClick={handleLogout} className="text-sm bg-red-50 text-red-600 px-4 py-2 rounded font-bold hover:bg-red-100">Logout</button>
+        <div className="flex gap-5 items-center">
+          <button onClick={() => navigate('/app')} className="text-[0.72rem] font-light tracking-[0.1em] uppercase text-[#7A7870] hover:text-[#1A1A18] transition-colors bg-transparent border-none cursor-pointer p-0" style={{ borderBottom: '1px solid #E4E0D8' }}>Back to Site</button>
+          <button onClick={handleLogout} className="text-[0.72rem] font-light tracking-[0.1em] uppercase text-[#7A7870] hover:text-[#B56145] transition-colors bg-transparent border-none cursor-pointer p-0" style={{ borderBottom: '1px solid #E4E0D8' }}>Logout</button>
         </div>
       </header>
 
-      <div className="flex gap-4 mb-8 border-b border-gray-200 pb-1 flex-wrap">
+      <div className="flex gap-8 mb-10 border-b border-[#E4E0D8] flex-wrap">
         {[
-          { key: 'analytics', label: 'Overview & Stats' },
-          { key: 'services', label: 'Service Menu' },
+          { key: 'analytics', label: 'Overview' },
+          { key: 'services', label: 'Services' },
           { key: 'stylists', label: 'Stylists' },
-          { key: 'loyalty', label: 'Loyalty & Vouchers' },
+          { key: 'loyalty', label: 'Vouchers' },
           { key: 'reviews', label: 'Reviews' },
-          { key: 'cancel', label: 'Cancel Booking' },
+          { key: 'cancel', label: 'Cancel' },
         ].map(({ key, label }) => (
           <button
             key={key}
             onClick={() => setActiveTab(key)}
-            className={`pb-2 px-4 text-sm font-bold uppercase tracking-widest transition ${activeTab === key ? 'border-b-2 border-black text-black' : 'text-gray-400 hover:text-gray-600'}`}
+            className={`pb-3 text-[0.72rem] tracking-[0.12em] uppercase transition-colors bg-transparent border-none cursor-pointer p-0 ${activeTab === key ? 'font-medium text-[#1A1A18]' : 'font-light text-[#7A7870] hover:text-[#1A1A18]'}`}
+            style={activeTab === key ? { borderBottom: '2px solid #B8975A', marginBottom: '-1px' } : {}}
           >
             {label}
             {key === 'reviews' && pendingReviews.length > 0 && (
-              <span className="ml-2 bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">{pendingReviews.length}</span>
+              <span className="ml-2 text-[0.58rem] px-1.5 py-0.5" style={{ background: '#B8975A', color: '#fff' }}>{pendingReviews.length}</span>
             )}
           </button>
         ))}
@@ -489,16 +595,17 @@ export default function AdminDashboard() {
       {activeTab === 'analytics' && (
         <div className="space-y-8 animate-fade-in">
           <AdminAnalytics token={session?.access_token} />
-          <div className="bg-blue-50 p-6 rounded-lg border border-blue-100 flex justify-between items-center">
+          <div className="bg-white border border-[#E4E0D8] p-6 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
             <div>
-              <h2 className="text-blue-900 font-bold text-lg">Operational Actions</h2>
-              <p className="text-blue-700 text-sm">Manage walk-ins and offline clients</p>
+              <p className="text-[0.62rem] tracking-[0.15em] uppercase mb-1" style={{ color: '#B8975A' }}>Operational Actions</p>
+              <h2 className="font-display text-[1.4rem] font-light text-[#1A1A18]">Create a booking</h2>
+              <p className="text-[0.78rem] font-light text-[#7A7870] mt-1">Manage walk-ins and offline clients.</p>
             </div>
             <button
               onClick={() => setShowGuestModal(true)}
-              className="bg-blue-600 text-white px-6 py-3 rounded shadow font-bold hover:bg-blue-700 transition"
+              className="px-6 py-3 text-[0.72rem] font-medium tracking-[0.12em] uppercase bg-[#1A1A18] text-white border-none cursor-pointer hover:bg-[#B8975A] transition-colors"
             >
-              + New Shadow Booking
+              + New Booking
             </button>
           </div>
         </div>
@@ -506,18 +613,18 @@ export default function AdminDashboard() {
 
       {activeTab === 'services' && (
         <div className="grid md:grid-cols-3 gap-8 animate-fade-in">
-          <div className="md:col-span-1 bg-white p-6 rounded shadow-sm border border-gray-100 h-fit">
-            <h2 className="font-bold mb-4">{editingId ? 'Edit Service' : 'Add New Service'}</h2>
+          <div className="md:col-span-1 bg-white p-6 border border-[#E4E0D8] h-fit">
+            <p className="text-[0.62rem] tracking-[0.15em] uppercase mb-4" style={{ color: '#B8975A' }}>{editingId ? 'Edit Service' : 'Add New Service'}</p>
             <form onSubmit={handleSubmit} className="space-y-4">
               <input
-                className="w-full border p-2 rounded bg-gray-50"
+                className="w-full border border-[#E4E0D8] p-3 bg-[#FAFAF8] text-[0.85rem] font-light focus:outline-none focus:border-[#B8975A]"
                 placeholder="Service Name"
                 value={formData.name}
                 onChange={e => setFormData({ ...formData, name: e.target.value })}
                 required
               />
               <select
-                className="w-full border p-2 rounded bg-gray-50"
+                className="w-full border border-[#E4E0D8] p-3 bg-[#FAFAF8] text-[0.85rem] font-light focus:outline-none focus:border-[#B8975A]"
                 value={formData.category}
                 onChange={e => setFormData({ ...formData, category: e.target.value })}
               >
@@ -525,38 +632,38 @@ export default function AdminDashboard() {
                 <option>Colour & Balayage</option>
                 <option>Treatments</option>
               </select>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-3">
                 <input
-                  type="number" className="border p-2 rounded bg-gray-50" placeholder="Price £"
+                  type="number" className="w-full border border-[#E4E0D8] p-3 bg-[#FAFAF8] text-[0.85rem] font-light focus:outline-none focus:border-[#B8975A]" placeholder="Price £"
                   value={formData.price} onChange={e => setFormData({ ...formData, price: e.target.value })} required
                 />
                 <input
-                  type="number" className="border p-2 rounded bg-gray-50" placeholder="Mins"
+                  type="number" className="w-full border border-[#E4E0D8] p-3 bg-[#FAFAF8] text-[0.85rem] font-light focus:outline-none focus:border-[#B8975A]" placeholder="Mins"
                   value={formData.duration} onChange={e => setFormData({ ...formData, duration: e.target.value })} required
                 />
               </div>
-              <button disabled={isSubmitting} className="w-full bg-black text-white p-2 rounded font-bold hover:bg-gray-800 disabled:opacity-50">
+              <button disabled={isSubmitting} className="w-full py-3 text-[0.72rem] font-medium tracking-[0.12em] uppercase bg-[#1A1A18] text-white border-none cursor-pointer hover:bg-[#B8975A] disabled:opacity-50 transition-colors">
                 {editingId ? 'Update' : 'Create'}
               </button>
-              {editingId && <button type="button" onClick={() => setEditingId(null)} className="w-full text-xs text-gray-500 mt-2">Cancel Edit</button>}
+              {editingId && <button type="button" onClick={() => setEditingId(null)} className="w-full text-[0.68rem] tracking-[0.1em] uppercase text-[#7A7870] hover:text-[#1A1A18] mt-2 bg-transparent border-none cursor-pointer">Cancel Edit</button>}
             </form>
           </div>
           <div className="md:col-span-2 space-y-6">
             {Object.entries(groupedServices).map(([cat, items]) => (
-              <div key={cat} className="bg-white p-6 rounded shadow-sm border border-gray-100">
-                <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-4">{cat}</h3>
-                <div className="space-y-2">
+              <div key={cat} className="bg-white p-6 border border-[#E4E0D8]">
+                <p className="text-[0.62rem] tracking-[0.15em] uppercase mb-4" style={{ color: '#B8975A' }}>{cat}</p>
+                <div className="divide-y divide-[#E4E0D8]">
                   {items.map(s => (
-                    <div key={s.id} className="flex justify-between items-center p-3 hover:bg-gray-50 rounded border border-transparent hover:border-gray-100">
+                    <div key={s.id} className="flex justify-between items-center py-4 first:pt-0 last:pb-0">
                       <div>
-                        <span className="font-bold text-gray-800">{s.name}</span>
-                        <span className="text-xs text-gray-400 ml-2">{s.duration_minutes}m</span>
+                        <span className="font-display text-[1.05rem] font-medium text-[#1A1A18]">{s.name}</span>
+                        <span className="text-[0.72rem] font-light text-[#7A7870] ml-3">{s.duration_minutes}m</span>
                       </div>
-                      <div className="flex items-center gap-4">
-                        <span className="font-mono">£{s.base_price}</span>
-                        <div className="flex gap-2">
-                          <button onClick={() => handleEditClick(s)} className="text-blue-500 hover:text-blue-700 text-sm">Edit</button>
-                          <button onClick={() => handleDelete(s.id)} className="text-red-400 hover:text-red-600 text-sm">×</button>
+                      <div className="flex items-center gap-5">
+                        <span className="font-display text-[1.1rem] font-light text-[#1A1A18]">£{s.base_price}</span>
+                        <div className="flex gap-3">
+                          <button onClick={() => handleEditClick(s)} className="text-[0.68rem] tracking-[0.1em] uppercase text-[#7A7870] hover:text-[#1A1A18] bg-transparent border-none cursor-pointer" style={{ borderBottom: '1px solid #E4E0D8' }}>Edit</button>
+                          <button onClick={() => handleDelete(s.id)} className="text-[0.68rem] tracking-[0.1em] uppercase text-[#7A7870] hover:text-[#B56145] bg-transparent border-none cursor-pointer" style={{ borderBottom: '1px solid #E4E0D8' }}>Remove</button>
                         </div>
                       </div>
                     </div>
@@ -564,6 +671,43 @@ export default function AdminDashboard() {
                 </div>
               </div>
             ))}
+
+            {/* Deleted / inactive services */}
+            {inactiveServices.length > 0 && (
+              <div className="bg-white p-6 border border-[#E4E0D8]">
+                <button
+                  onClick={() => setShowInactive(v => !v)}
+                  className="w-full flex items-center justify-between bg-transparent border-none cursor-pointer p-0 text-left"
+                >
+                  <p className="text-[0.62rem] tracking-[0.15em] uppercase" style={{ color: '#B8975A' }}>
+                    Deleted Services ({inactiveServices.length})
+                  </p>
+                  <span className={`text-[#B4A894] text-xs transition-transform duration-200 ${showInactive ? 'rotate-180' : ''}`}>▼</span>
+                </button>
+                {showInactive && (
+                  <div className="divide-y divide-[#E4E0D8] mt-4">
+                    {inactiveServices.map(s => (
+                      <div key={s.id} className="flex justify-between items-center py-4 first:pt-0 last:pb-0">
+                        <div>
+                          <span className="font-display text-[1.05rem] font-medium text-[#B4A894] italic">{s.name}</span>
+                          <span className="text-[0.72rem] font-light text-[#B4A894] ml-3">{s.duration_minutes}m · {s.category}</span>
+                        </div>
+                        <div className="flex items-center gap-5">
+                          <span className="font-display text-[1.1rem] font-light text-[#B4A894]">£{s.base_price}</span>
+                          <button
+                            onClick={() => handleRestore(s.id)}
+                            className="text-[0.68rem] tracking-[0.1em] uppercase bg-transparent border-none cursor-pointer transition-colors"
+                            style={{ color: '#B8975A', borderBottom: '1px solid #E4E0D8' }}
+                          >
+                            Restore
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -583,38 +727,86 @@ export default function AdminDashboard() {
       {activeTab === 'reviews' && (
         <div className="animate-fade-in">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="font-bold text-lg uppercase tracking-widest">Pending Reviews</h2>
-            <button onClick={fetchPendingReviews} className="text-xs text-gray-400 hover:text-black underline">Refresh</button>
+            <div>
+              <p className="text-[0.62rem] tracking-[0.15em] uppercase mb-1" style={{ color: '#B8975A' }}>Moderation</p>
+              <h2 className="font-display text-[1.6rem] font-light text-[#1A1A18]">Pending Reviews</h2>
+            </div>
+            <button onClick={fetchPendingReviews} className="text-[0.68rem] tracking-[0.1em] uppercase text-[#7A7870] hover:text-[#1A1A18] bg-transparent border-none cursor-pointer" style={{ borderBottom: '1px solid #E4E0D8' }}>Refresh</button>
           </div>
           {reviewsLoading ? (
-            <div className="text-center text-gray-400 animate-pulse py-12">Loading...</div>
+            <div className="text-center text-[#7A7870] font-light animate-pulse py-12">Loading...</div>
           ) : pendingReviews.length === 0 ? (
-            <div className="bg-white rounded shadow-sm border border-gray-100 p-16 text-center text-gray-400">
-              No pending reviews.
+            <div className="bg-white border border-[#E4E0D8] p-16 text-center">
+              <p className="font-display text-[1.2rem] font-light text-[#7A7870]">No pending reviews.</p>
             </div>
           ) : (
             <div className="space-y-4">
               {pendingReviews.map((review) => (
-                <div key={review.id} className="bg-white rounded shadow-sm border border-gray-100 p-6 flex justify-between items-start">
-                  <div>
-                    <div className="flex items-center gap-3 mb-2">
-                      <span className="font-bold text-gray-800">{review.profiles?.full_name || 'Customer'}</span>
-                      <span className="text-xs text-gray-400">→ {review.stylists?.name}</span>
-                      <span className="text-yellow-500 font-bold">{'★'.repeat(review.rating)}{'☆'.repeat(5 - review.rating)}</span>
+                <div key={review.id} className="bg-white border border-[#E4E0D8] p-6 flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-3 mb-2 flex-wrap">
+                      <span className="font-display text-[1.1rem] font-medium text-[#1A1A18]">{review.profiles?.full_name || 'Customer'}</span>
+                      <span className="text-[0.72rem] font-light text-[#7A7870]">→ {review.stylists?.name}</span>
+                      <span className="tracking-[0.1em]" style={{ color: '#D4B07A' }}>{'★'.repeat(review.rating)}{'☆'.repeat(5 - review.rating)}</span>
                     </div>
                     {review.comment && (
-                      <p className="text-sm text-gray-600 max-w-xl">{review.comment}</p>
+                      <p className="text-[0.85rem] font-light text-[#7A7870] leading-relaxed max-w-xl">{review.comment}</p>
                     )}
-                    <p className="text-[10px] text-gray-400 mt-2">{new Date(review.created_at).toLocaleString('en-GB')}</p>
+                    <p className="text-[0.65rem] font-light text-[#B4A894] mt-2 tracking-wide">{new Date(review.created_at).toLocaleString('en-GB')}</p>
                   </div>
-                  <button
-                    onClick={() => handleApprove(review.id)}
-                    className="bg-green-600 text-white px-4 py-2 rounded text-xs font-bold uppercase hover:bg-green-700 transition ml-4 shrink-0"
-                  >
-                    Approve
-                  </button>
+                  <div className="flex gap-2 shrink-0">
+                    <button
+                      onClick={() => handleApprove(review.id)}
+                      className="px-5 py-2.5 text-[0.68rem] font-medium tracking-[0.12em] uppercase bg-[#1A1A18] text-white border-none cursor-pointer hover:bg-[#B8975A] transition-colors"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      onClick={() => handleDeleteReview(review.id)}
+                      className="px-4 py-2.5 text-[0.68rem] font-light tracking-[0.1em] uppercase border bg-transparent cursor-pointer transition-colors"
+                      style={{ color: '#B56145', borderColor: '#E4D5AE' }}
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* Approved Reviews — Live on Landing Page */}
+          {!reviewsLoading && approvedReviews.length > 0 && (
+            <div className="mt-10">
+              <div className="flex justify-between items-center mb-6">
+                <div>
+                  <p className="text-[0.62rem] tracking-[0.15em] uppercase mb-1" style={{ color: '#B8975A' }}>Live on Landing Page</p>
+                  <h2 className="font-display text-[1.4rem] font-light text-[#1A1A18]">Approved Reviews ({approvedReviews.length})</h2>
+                </div>
+              </div>
+              <div className="space-y-3">
+                {approvedReviews.map((review) => (
+                  <div key={review.id} className="bg-[#FAFAF8] border border-[#E4E0D8] p-5 flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-3 mb-1 flex-wrap">
+                        <span className="font-display text-[1rem] font-medium text-[#1A1A18]">{review.profiles?.full_name || 'Customer'}</span>
+                        <span className="text-[0.72rem] font-light text-[#7A7870]">→ {review.stylists?.name}</span>
+                        <span className="tracking-[0.1em]" style={{ color: '#D4B07A' }}>{'★'.repeat(review.rating)}{'☆'.repeat(5 - review.rating)}</span>
+                      </div>
+                      {review.comment && (
+                        <p className="text-[0.82rem] font-light text-[#7A7870] leading-relaxed max-w-xl">{review.comment}</p>
+                      )}
+                      <p className="text-[0.62rem] font-light text-[#B4A894] mt-1.5 tracking-wide">{new Date(review.created_at).toLocaleDateString('en-GB')}</p>
+                    </div>
+                    <button
+                      onClick={() => handleDeleteReview(review.id)}
+                      className="px-4 py-2 text-[0.68rem] font-light tracking-[0.1em] uppercase border bg-transparent cursor-pointer transition-colors shrink-0"
+                      style={{ color: '#B56145', borderColor: '#E4D5AE' }}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -626,19 +818,25 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {showGuestModal && <GuestBookingModal onClose={() => setShowGuestModal(false)} onConfirm={handleGuestBooking} />}
+      {showGuestModal && (
+        <GuestBookingModal
+          onClose={() => setShowGuestModal(false)}
+          onConfirm={handleGuestBooking}
+          token={session?.access_token}
+        />
+      )}
 
       {guestBookingSuccess && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
-          <div className="bg-white w-full max-w-sm p-8 text-center shadow-2xl rounded-lg">
-            <div className="w-14 h-14 rounded-full bg-green-50 border border-green-200 flex items-center justify-center mx-auto mb-5">
-              <span className="text-xl text-green-600">✓</span>
+          <div className="bg-white w-full max-w-sm p-8 text-center border border-[#E4E0D8]">
+            <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-5" style={{ border: '1px solid #B8975A', background: 'rgba(184,151,90,0.08)' }}>
+              <span className="text-xl" style={{ color: '#B8975A' }}>✓</span>
             </div>
-            <h2 className="text-lg font-bold uppercase tracking-widest text-gray-800 mb-1">Guest Booking Made</h2>
-            <p className="text-sm text-gray-500 mb-6">The booking has been confirmed and the customer will receive an email if one was provided.</p>
+            <h2 className="font-display text-[1.4rem] font-medium text-[#1A1A18] mb-1">{successMessage.title}</h2>
+            <p className="text-[0.78rem] font-light text-[#7A7870] mb-6 leading-relaxed">{successMessage.subtitle}</p>
             <button
               onClick={() => setGuestBookingSuccess(false)}
-              className="w-full bg-black text-white py-3 text-xs font-bold uppercase tracking-widest hover:bg-gray-800 transition"
+              className="w-full py-3 text-[0.72rem] font-medium tracking-[0.12em] uppercase bg-[#1A1A18] text-white border-none cursor-pointer hover:bg-[#B8975A] transition-colors"
             >
               Done
             </button>

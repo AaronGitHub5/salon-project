@@ -397,7 +397,6 @@ export default function LandingPage() {
               {[
                 { label:"Address", value:<>265 High Street Harlington<br />Hayes, UB3 5DF</> },
                 { label:"Phone",   value:<a href="tel:02084767326" className="border-b border-[#E4E0D8] hover:border-[#B8975A] transition-colors no-underline text-[#1A1A18]">020 8476 7326</a> },
-                { label:"Email",   value:<a href="mailto:no-reply@hairbyamnesia.co.uk" className="border-b border-[#E4E0D8] hover:border-[#B8975A] transition-colors no-underline text-[#1A1A18]">no-reply@hairbyamnesia.co.uk</a> },
                 { label:"Hours",   value:<>Mon – Fri 9am – 6:30pm<br />Sat 9am – 6:30pm</> },
               ].map(({ label, value }) => (
                 <div key={label}>
@@ -447,8 +446,9 @@ export default function LandingPage() {
             </button>
           ))}
         </div>
-        <div className="text-[0.67rem] tracking-wide" style={{ color:"rgba(255,255,255,0.2)" }}>
-          © {new Date().getFullYear()} Hair by Amnesia. All rights reserved.
+        <div className="text-[0.67rem] tracking-wide flex items-center gap-4" style={{ color:"rgba(255,255,255,0.2)" }}>
+          <span>© {new Date().getFullYear()} Hair by Amnesia. All rights reserved.</span>
+          <a href="/privacy" className="hover:text-white/50 transition-colors" style={{ color:"rgba(255,255,255,0.2)", textDecoration:"none", borderBottom:"1px solid rgba(255,255,255,0.1)" }}>Privacy Policy</a>
         </div>
       </footer>
 

@@ -6,33 +6,49 @@ async function getAnalytics() {
 
   const bookings = await analyticsDao.getAnalyticsBookings(lastMonth);
 
-  const totalRevenue = bookings.reduce(
-    (sum, b) => sum + (b.services?.base_price || 0),
-    0
-  );
-
   const stylistCounts = {};
-  const dailyData = {};
+  const serviceCounts = {};
+  const dayCounts = { Monday: 0, Tuesday: 0, Wednesday: 0, Thursday: 0, Friday: 0, Saturday: 0, Sunday: 0 };
+  const hourCounts = {};
 
   bookings.forEach((b) => {
     const name = b.stylists?.name || 'Unknown';
     stylistCounts[name] = (stylistCounts[name] || 0) + 1;
 
-    const date = b.start_time.split('T')[0];
-    dailyData[date] = (dailyData[date] || 0) + 1;
+    const serviceName = b.services?.name || 'Unknown';
+    serviceCounts[serviceName] = (serviceCounts[serviceName] || 0) + 1;
+
+    const dayOfWeek = new Date(b.start_time).toLocaleDateString('en-GB', { weekday: 'long' });
+    if (dayCounts[dayOfWeek] !== undefined) dayCounts[dayOfWeek]++;
+
+    const hour = new Date(b.start_time).getHours();
+    hourCounts[hour] = (hourCounts[hour] || 0) + 1;
   });
 
   const topStylist = Object.entries(stylistCounts).sort((a, b) => b[1] - a[1])[0] || ['None', 0];
+  const topService = Object.entries(serviceCounts).sort((a, b) => b[1] - a[1])[0] || ['None', 0];
+  const topDay = Object.entries(dayCounts).sort((a, b) => b[1] - a[1])[0] || ['None', 0];
+  const topHour = Object.entries(hourCounts).sort((a, b) => b[1] - a[1])[0] || [0, 0];
 
-  const chartData = Object.keys(dailyData)
-    .sort()
-    .map((d) => ({ date: d, bookings: dailyData[d] }));
+  const formatHour = (h) => {
+    const hour = parseInt(h);
+    return `${String(hour).padStart(2, '0')}:00`;
+  };
+
+  const dayOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  const dayChartData = dayOrder.map(day => ({
+    day: day.slice(0, 3),
+    fullDay: day,
+    bookings: dayCounts[day],
+  }));
 
   return {
-    totalRevenue,
     totalBookings: bookings.length,
     topStylist: topStylist[0],
-    chartData,
+    topService: { name: topService[0], count: topService[1] },
+    topDay: { name: topDay[0], count: topDay[1] },
+    topHour: { time: formatHour(topHour[0]), count: topHour[1] },
+    dayChartData,
   };
 }
 

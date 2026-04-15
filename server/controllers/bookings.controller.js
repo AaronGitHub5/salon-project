@@ -58,6 +58,15 @@ async function getPendingForStylist(req, res) {
   }
 }
 
+async function getAllPending(req, res) {
+  try {
+    const data = await bookingsDao.getAllPendingBookings();
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
 async function searchBookings(req, res) {
   try {
     const q = req.query.q;
@@ -73,7 +82,7 @@ async function searchBookings(req, res) {
 
 async function approve(req, res) {
   try {
-    const data = await bookingService.approveBooking(req.params.id);
+    const data = await bookingService.approveBooking(req.params.id, req.user.email);
     res.json({ message: 'Booking approved', data });
   } catch (err) {
     const status = err.status || 500;
@@ -83,7 +92,7 @@ async function approve(req, res) {
 
 async function reject(req, res) {
   try {
-    const data = await bookingService.rejectBooking(req.params.id);
+    const data = await bookingService.rejectBooking(req.params.id, req.user.email);
     res.json({ message: 'Booking rejected', data });
   } catch (err) {
     const status = err.status || 500;
@@ -93,16 +102,17 @@ async function reject(req, res) {
 
 async function cancel(req, res) {
   try {
-    const data = await bookingService.cancelBooking(req.params.id);
+    const data = await bookingService.cancelBooking(req.params.id, req.user.id);
     res.json({ message: 'Booking cancelled', data });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    const status = err.status || 500;
+    res.status(status).json({ error: err.message });
   }
 }
 
 async function complete(req, res) {
   try {
-    const result = await bookingService.completeBooking(req.params.id);
+    const result = await bookingService.completeBooking(req.params.id, req.user.email);
     res.json(result);
   } catch (err) {
     const status = err.status || 500;
@@ -112,7 +122,7 @@ async function complete(req, res) {
 
 async function reschedule(req, res) {
   try {
-    const result = await bookingService.rescheduleBooking(req.params.id, req.body.new_start_time);
+    const result = await bookingService.rescheduleBooking(req.params.id, req.body.new_start_time, req.user.id);
     res.json({ message: 'Booking rescheduled', data: result });
   } catch (err) {
     const status = err.status || 500;
@@ -132,4 +142,4 @@ async function exportIcs(req, res) {
   }
 }
 
-module.exports = { getAll, create, createGuest, getByCustomer, getByStylist, getPendingForStylist, searchBookings, approve, reject, cancel, complete, reschedule, exportIcs };
+module.exports = { getAll, create, createGuest, getByCustomer, getByStylist, getPendingForStylist, getAllPending, searchBookings, approve, reject, cancel, complete, reschedule, exportIcs };

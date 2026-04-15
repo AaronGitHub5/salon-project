@@ -11,17 +11,22 @@ async function getOverrides(req, res) {
 }
 
 // POST /api/shifts/overrides/preview
-// Returns count + list of bookings that would be affected 
+// Returns count + list of bookings that would be affected
 async function previewOverride(req, res) {
   try {
-    const { stylist_id, override_date, cancel_remaining_only } = req.body;
-    if (!stylist_id || !override_date) {
-      return res.status(400).json({ error: 'stylist_id and override_date required' });
+    const { stylist_id, override_date, end_date, cancel_remaining_only, all_stylists } = req.body;
+    if (!all_stylists && !stylist_id) {
+      return res.status(400).json({ error: 'stylist_id required (or set all_stylists: true)' });
+    }
+    if (!override_date) {
+      return res.status(400).json({ error: 'override_date required' });
     }
     const preview = await shiftOverrideService.previewOverride({
       stylist_id,
       override_date,
+      end_date: end_date || null,
       cancel_remaining_only: cancel_remaining_only ?? false,
+      all_stylists: all_stylists ?? false,
     });
     res.json(preview);
   } catch (err) {
@@ -33,16 +38,21 @@ async function previewOverride(req, res) {
 // Saves override + cancels bookings + sends emails
 async function saveOverride(req, res) {
   try {
-    const { stylist_id, override_date, is_working, reason, cancel_remaining_only } = req.body;
-    if (!stylist_id || !override_date) {
-      return res.status(400).json({ error: 'stylist_id and override_date required' });
+    const { stylist_id, override_date, end_date, is_working, reason, cancel_remaining_only, all_stylists } = req.body;
+    if (!all_stylists && !stylist_id) {
+      return res.status(400).json({ error: 'stylist_id required (or set all_stylists: true)' });
+    }
+    if (!override_date) {
+      return res.status(400).json({ error: 'override_date required' });
     }
     const result = await shiftOverrideService.saveOverride({
       stylist_id,
       override_date,
+      end_date: end_date || null,
       is_working: is_working ?? false,
       reason: reason || null,
       cancel_remaining_only: cancel_remaining_only ?? false,
+      all_stylists: all_stylists ?? false,
     });
     res.status(201).json(result);
   } catch (err) {

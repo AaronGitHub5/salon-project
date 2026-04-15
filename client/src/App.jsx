@@ -8,6 +8,7 @@ import Profile from './Profile';
 import StylistSchedule from './StylistSchedule';
 import ResetPassword from './ResetPassword';
 import LandingPage from './LandingPage';
+import PrivacyPolicy from './PrivacyPolicy';
 
 // Renders landing page for guests, redirects logged-in users to their dashboard
 function RootRedirect() {
@@ -44,6 +45,7 @@ export default function App() {
       <Route path="/" element={<RootRedirect />} />
       <Route path="/login" element={<LoginRedirect />} />
       <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/privacy" element={<PrivacyPolicy />} />
 
       {/* Customer */}
       <Route

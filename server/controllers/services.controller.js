@@ -34,11 +34,26 @@ async function remove(req, res) {
     await servicesService.deleteService(req.params.id);
     res.json({ message: 'Service deleted' });
   } catch (err) {
-    if (err.message && err.message.includes('foreign key')) {
-      return res.status(409).json({ error: 'This service has bookings attached to it and cannot be deleted.' });
-    }
     res.status(500).json({ error: err.message });
   }
 }
 
-module.exports = { getAll, create, update, remove };
+async function getInactive(req, res) {
+  try {
+    const data = await servicesService.getInactiveServices();
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
+async function restore(req, res) {
+  try {
+    await servicesService.restoreService(req.params.id);
+    res.json({ message: 'Service restored' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
+module.exports = { getAll, create, update, remove, getInactive, restore };

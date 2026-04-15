@@ -4,7 +4,7 @@ async function getAllBookings() {
   const { data, error } = await supabase
     .from('bookings')
     .select(
-      `*, services(name, base_price), stylists(name), profiles(full_name, email), guests(full_name, phone_number, email)`
+      `*, services(name, base_price), stylists(name), profiles(full_name, email, phone_number), guests(full_name, phone_number, email)`
     )
     .order('start_time');
   if (error) throw error;
@@ -37,6 +37,16 @@ async function getPendingBookingsForStylist(stylistId) {
     .from('bookings')
     .select(`*, services(name, base_price, duration_minutes), profiles(full_name, email, phone_number), guests(full_name, email, phone_number)`)
     .eq('stylist_id', stylistId)
+    .eq('status', 'pending')
+    .order('start_time', { ascending: true });
+  if (error) throw error;
+  return data;
+}
+
+async function getAllPendingBookings() {
+  const { data, error } = await supabase
+    .from('bookings')
+    .select(`*, services(name, base_price, duration_minutes), stylists(name), profiles(full_name, email, phone_number), guests(full_name, email, phone_number)`)
     .eq('status', 'pending')
     .order('start_time', { ascending: true });
   if (error) throw error;
@@ -151,7 +161,7 @@ async function cancelBooking(id) {
     .from('bookings')
     .update({ status: 'cancelled' })
     .eq('id', id)
-    .select(`*, profiles(email), services(name)`)
+    .select(`*, profiles(email), guests(email), services(name)`)
     .single();
   if (error) throw error;
   return data;
@@ -199,6 +209,7 @@ module.exports = {
   getBookingById,
   getStylistBookings,
   getPendingBookingsForStylist,
+  getAllPendingBookings,
   getCustomerBookings,
   searchBookings,
   createBooking,

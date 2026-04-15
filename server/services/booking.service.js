@@ -1,3 +1,4 @@
+const supabase = require('../supabaseClient');
 const bookingsDao = require('../daos/bookings.dao');
 const guestsDao = require('../daos/guests.dao');
 const profilesDao = require('../daos/profiles.dao');
@@ -15,7 +16,46 @@ const {
 } = require('./email.service');
 const ics = require('ics');
 
-async function createBooking({ customer_id, service_id, stylist_id, start_time }) {
+// -- Ownership helpers -----------------------------------------------
+
+// Fetches the caller's role from the profiles table. Used for admin overrides
+// on endpoints that don't chain requireRole middleware.
+async function getUserRole(userId) {
+  const { data } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', userId)
+    .single();
+  return data?.role || null;
+}
+
+// Resolves the stylist record for the caller (matched by email). Returns null
+// if the caller is not a stylist. Used to enforce stylist ownership on approve /
+// reject / complete.
+async function getStylistForUser(userEmail) {
+  if (!userEmail) return null;
+  const stylists = await stylistsDao.getAllStylists();
+  return stylists.find((s) => s.email === userEmail) || null;
+}
+
+// Throws a 403 if the caller is neither the booking's customer nor an admin.
+async function assertCanModifyCustomerBooking(booking, userId) {
+  if (booking.customer_id && booking.customer_id === userId) return;
+  const role = await getUserRole(userId);
+  if (role === 'admin') return;
+  throw Object.assign(new Error('Forbidden: you can only modify your own bookings.'), { status: 403 });
+}
+
+async function createBooking({ customer_id, service_id, stylist_id, start_time, booked_by_admin }) {
+  // Validate start_time is a real future date
+  const start = new Date(start_time);
+  if (isNaN(start.getTime())) {
+    throw Object.assign(new Error('Invalid start time.'), { status: 400 });
+  }
+  if (start < new Date()) {
+    throw Object.assign(new Error('Booking time must be in the future.'), { status: 400 });
+  }
+
   const services = await servicesDao.getAllServices();
   const service = services.find((s) => s.id == service_id);
   if (!service) throw new Error('Service not found');
@@ -24,14 +64,13 @@ async function createBooking({ customer_id, service_id, stylist_id, start_time }
   const stylist = stylists.find((s) => s.id == stylist_id);
   if (!stylist) throw new Error('Stylist not found');
 
-  const start = new Date(start_time);
   const end = new Date(start.getTime() + service.duration_minutes * 60000);
 
   const conflict = await bookingsDao.checkConflict(stylist_id, start.toISOString(), end.toISOString());
   if (conflict) throw Object.assign(new Error('Time slot unavailable.'), { status: 409 });
 
-  // Senior stylist bookings start as pending — must be approved
-  const status = stylist.is_senior ? 'pending' : 'confirmed';
+  // Admin bookings confirm immediately; all customer bookings require senior stylist approval
+  const status = booked_by_admin ? 'confirmed' : 'pending';
   const booking = await bookingsDao.createBooking({ customer_id, service_id, stylist_id, start_time: start, end_time: end, status });
 
   const { price: finalPrice } = calculatePrice(
@@ -105,10 +144,18 @@ async function createGuestBooking({ guestName, guestPhone, guestEmail, serviceId
   return { guest, booking, price: finalPrice };
 }
 
-async function approveBooking(id) {
+async function approveBooking(id, userEmail) {
   const booking = await bookingsDao.getBookingById(id);
   if (!booking) throw Object.assign(new Error('Booking not found'), { status: 404 });
   if (booking.status !== 'pending') throw Object.assign(new Error('Booking is not pending'), { status: 400 });
+
+  // Ownership check: the stylist approving must be assigned to this booking,
+  // OR must be a senior stylist (senior stylists can approve across the salon).
+  const me = await getStylistForUser(userEmail);
+  if (!me) throw Object.assign(new Error('Forbidden: stylist record not found.'), { status: 403 });
+  if (!me.is_senior && booking.stylist_id !== me.id) {
+    throw Object.assign(new Error('Forbidden: you can only approve your own bookings.'), { status: 403 });
+  }
 
   const data = await bookingsDao.approveBooking(id);
 
@@ -130,10 +177,17 @@ async function approveBooking(id) {
   return data;
 }
 
-async function rejectBooking(id) {
+async function rejectBooking(id, userEmail) {
   const booking = await bookingsDao.getBookingById(id);
   if (!booking) throw Object.assign(new Error('Booking not found'), { status: 404 });
   if (booking.status !== 'pending') throw Object.assign(new Error('Booking is not pending'), { status: 400 });
+
+  // Same ownership rule as approve
+  const me = await getStylistForUser(userEmail);
+  if (!me) throw Object.assign(new Error('Forbidden: stylist record not found.'), { status: 403 });
+  if (!me.is_senior && booking.stylist_id !== me.id) {
+    throw Object.assign(new Error('Forbidden: you can only reject your own bookings.'), { status: 403 });
+  }
 
   const data = await bookingsDao.rejectBooking(id);
 
@@ -153,21 +207,40 @@ async function rejectBooking(id) {
   return data;
 }
 
-async function cancelBooking(id) {
+async function cancelBooking(id, userId) {
+  const booking = await bookingsDao.getBookingById(id);
+  if (!booking) throw Object.assign(new Error('Booking not found'), { status: 404 });
+
+  // Ownership check: customer owns it, OR caller is admin.
+  // Guest bookings (customer_id null) can only be cancelled by admin.
+  await assertCanModifyCustomerBooking(booking, userId);
+
   const data = await bookingsDao.cancelBooking(id);
-  if (data?.profiles?.email) {
+
+  // Send cancellation email to customer or guest
+  const email = data?.profiles?.email || data?.guests?.email;
+  if (email) {
     await sendEmail(
-      data.profiles.email,
+      email,
       'Cancellation Confirmed - Hair By Amnesia',
       cancellationTemplate({ serviceName: data.services.name })
     );
   }
+
   return data;
 }
 
-async function completeBooking(id) {
+async function completeBooking(id, userEmail) {
   const booking = await bookingsDao.getBookingById(id);
   if (!booking) throw Object.assign(new Error('Booking not found'), { status: 404 });
+
+  // Ownership check: only the stylist assigned to this booking can mark it complete.
+  // This prevents one stylist from fraudulently awarding loyalty points for
+  // another stylist's appointments.
+  const me = await getStylistForUser(userEmail);
+  if (!me || booking.stylist_id !== me.id) {
+    throw Object.assign(new Error('Forbidden: you can only complete your own bookings.'), { status: 403 });
+  }
 
   await bookingsDao.completeBooking(id);
 
@@ -194,12 +267,21 @@ async function completeBooking(id) {
   return { message: 'Guest booking completed (no loyalty stamp awarded)' };
 }
 
-async function rescheduleBooking(id, newStartTime) {
+async function rescheduleBooking(id, newStartTime, userId) {
   const booking = await bookingsDao.getBookingById(id);
   if (!booking) throw Object.assign(new Error('Booking not found'), { status: 404 });
   if (booking.status === 'cancelled') throw Object.assign(new Error('Cannot reschedule a cancelled booking'), { status: 400 });
 
+  // Ownership check: customer owns it, OR caller is admin
+  await assertCanModifyCustomerBooking(booking, userId);
+
   const newStart = new Date(newStartTime);
+  if (isNaN(newStart.getTime())) {
+    throw Object.assign(new Error('Invalid start time.'), { status: 400 });
+  }
+  if (newStart < new Date()) {
+    throw Object.assign(new Error('Booking time must be in the future.'), { status: 400 });
+  }
   const newEnd = new Date(newStart.getTime() + booking.services.duration_minutes * 60000);
 
   const conflict = await bookingsDao.checkConflict(booking.stylist_id, newStart.toISOString(), newEnd.toISOString(), id);

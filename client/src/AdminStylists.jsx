@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
+import { useToast, useConfirm } from './Notifications';
 import API_URL from './config';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const DAY_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 function ShiftModal({ stylistName, dayIndex, existingShift, onSave, onDelete, onClose }) {
+  const confirm = useConfirm();
   const [startTime, setStartTime] = useState(existingShift?.start_time?.slice(0, 5) || '09:00');
   const [endTime, setEndTime] = useState(existingShift?.end_time?.slice(0, 5) || '17:00');
   const [saving, setSaving] = useState(false);
@@ -19,7 +21,13 @@ function ShiftModal({ stylistName, dayIndex, existingShift, onSave, onDelete, on
   };
 
   const handleDelete = async () => {
-    if (!confirm(`Remove ${DAY_FULL[dayIndex]} shift for ${stylistName}?`)) return;
+    const ok = await confirm({
+      title: `Remove ${DAY_FULL[dayIndex]} shift?`,
+      message: `This will remove ${stylistName}'s ${DAY_FULL[dayIndex]} shift.`,
+      confirmText: 'Remove',
+      destructive: true,
+    });
+    if (!ok) return;
     setSaving(true);
     try { await onDelete(existingShift.id); onClose(); }
     catch (err) { setError(err.message || 'Failed to delete shift'); setSaving(false); }
@@ -27,27 +35,27 @@ function ShiftModal({ stylistName, dayIndex, existingShift, onSave, onDelete, on
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white w-full max-w-sm shadow-2xl p-6 relative">
-        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-black text-xl">✕</button>
-        <h3 className="font-bold text-sm uppercase tracking-widest mb-1">{existingShift ? 'Edit Shift' : 'Add Shift'}</h3>
-        <p className="text-xs text-gray-400 mb-5">{stylistName} · {DAY_FULL[dayIndex]}</p>
+      <div className="bg-white w-full max-w-sm p-6 relative border border-[#E4E0D8]">
+        <button onClick={onClose} className="absolute top-4 right-4 text-[#B4A894] hover:text-[#1A1A18] text-xl bg-transparent border-none cursor-pointer">✕</button>
+        <p className="text-[0.62rem] tracking-[0.15em] uppercase mb-1" style={{ color: '#B8975A' }}>{existingShift ? 'Edit Shift' : 'Add Shift'}</p>
+        <h3 className="font-display text-[1.3rem] font-light text-[#1A1A18] mb-5">{stylistName} · {DAY_FULL[dayIndex]}</h3>
         <div className="space-y-4">
           <div>
-            <label className="text-xs text-gray-500 uppercase tracking-widest block mb-1">Start Time</label>
-            <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className="w-full border border-gray-300 p-3 text-sm focus:outline-black" />
+            <label className="text-[0.62rem] tracking-[0.12em] uppercase text-[#7A7870] block mb-1">Start Time</label>
+            <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className="w-full border border-[#E4E0D8] p-3 text-[0.85rem] font-light bg-[#FAFAF8] focus:outline-none focus:border-[#B8975A]" />
           </div>
           <div>
-            <label className="text-xs text-gray-500 uppercase tracking-widest block mb-1">End Time</label>
-            <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} className="w-full border border-gray-300 p-3 text-sm focus:outline-black" />
+            <label className="text-[0.62rem] tracking-[0.12em] uppercase text-[#7A7870] block mb-1">End Time</label>
+            <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} className="w-full border border-[#E4E0D8] p-3 text-[0.85rem] font-light bg-[#FAFAF8] focus:outline-none focus:border-[#B8975A]" />
           </div>
-          {error && <p className="text-red-500 text-xs">{error}</p>}
+          {error && <p className="text-[0.75rem] font-light" style={{ color: '#B56145' }}>{error}</p>}
         </div>
         <div className="flex gap-2 mt-6">
-          <button onClick={handleSave} disabled={saving} className="flex-1 bg-black text-white py-3 text-xs font-bold uppercase tracking-widest hover:bg-gray-800 disabled:opacity-50 transition">
+          <button onClick={handleSave} disabled={saving} className="flex-1 py-3 text-[0.72rem] font-medium tracking-[0.12em] uppercase bg-[#1A1A18] text-white border-none cursor-pointer hover:bg-[#B8975A] disabled:opacity-50 transition-colors">
             {saving ? 'Saving...' : 'Save Shift'}
           </button>
           {existingShift && (
-            <button onClick={handleDelete} disabled={saving} className="px-4 py-3 border border-red-200 text-red-500 text-xs font-bold uppercase hover:bg-red-50 transition">Remove</button>
+            <button onClick={handleDelete} disabled={saving} className="px-5 py-3 text-[0.68rem] font-light tracking-[0.1em] uppercase border bg-transparent cursor-pointer transition-colors" style={{ color: '#B56145', borderColor: '#E4D5AE' }}>Remove</button>
           )}
         </div>
       </div>
@@ -55,45 +63,55 @@ function ShiftModal({ stylistName, dayIndex, existingShift, onSave, onDelete, on
   );
 }
 
-function OverrideConfirmModal({ stylistName, overrideDate, preview, reason, cancelRemainingOnly, onConfirm, onCancel, saving }) {
-  const formattedDate = new Date(overrideDate + 'T12:00:00').toLocaleDateString('en-GB', {
+function OverrideConfirmModal({ stylistName, overrideDate, endDate, preview, reason, cancelRemainingOnly, onConfirm, onCancel, saving }) {
+  const formatDate = (d) => new Date(d + 'T12:00:00').toLocaleDateString('en-GB', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   });
+  const isRange = endDate && endDate !== overrideDate;
+  const dateLabel = isRange
+    ? `${formatDate(overrideDate)} — ${formatDate(endDate)}`
+    : formatDate(overrideDate);
+  const daysCount = preview.dates || 1;
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white w-full max-w-md shadow-2xl p-6 relative">
-        <h3 className="font-bold text-sm uppercase tracking-widest mb-1 text-red-600">⚠ Confirm Date Block</h3>
-        <p className="text-xs text-gray-500 mb-4">{stylistName} · {formattedDate}</p>
+      <div className="bg-white w-full max-w-md p-6 relative border border-[#E4E0D8] max-h-[90vh] overflow-y-auto">
+        <p className="text-[0.62rem] tracking-[0.15em] uppercase mb-1" style={{ color: '#B56145' }}>⚠ Confirm Date Block</p>
+        <h3 className="font-display text-[1.3rem] font-light text-[#1A1A18] mb-1">{stylistName}</h3>
+        <p className="text-[0.72rem] font-light text-[#7A7870] mb-1">{dateLabel}</p>
+        {isRange && <p className="text-[0.65rem] font-light text-[#B4A894] mb-4">{daysCount} day{daysCount !== 1 ? 's' : ''} blocked</p>}
+        {!isRange && <div className="mb-4" />}
         {preview.count === 0 ? (
-          <div className="bg-green-50 border border-green-200 rounded p-4 mb-4">
-            <p className="text-green-700 text-sm font-bold">✓ No bookings affected</p>
-            <p className="text-green-600 text-xs mt-1">No confirmed bookings exist for this date{cancelRemainingOnly ? ' from now onwards' : ''}.</p>
+          <div className="border border-[#B8975A] bg-[rgba(184,151,90,0.08)] p-4 mb-4">
+            <p className="text-[0.82rem] font-medium" style={{ color: '#B8975A' }}>✓ No bookings affected</p>
+            <p className="text-[0.72rem] font-light text-[#7A7870] mt-1">No confirmed bookings exist for {isRange ? 'these dates' : 'this date'}{cancelRemainingOnly ? ' from now onwards' : ''}.</p>
           </div>
         ) : (
-          <div className="bg-red-50 border border-red-200 rounded p-4 mb-4">
-            <p className="text-red-700 text-sm font-bold">{preview.count} booking{preview.count > 1 ? 's' : ''} will be cancelled</p>
-            <p className="text-red-600 text-xs mt-1 mb-3">{cancelRemainingOnly ? 'Remaining bookings from now onwards.' : 'All bookings on this date.'} Customers will be emailed automatically.</p>
-            <div className="space-y-2">
+          <div className="border border-[#E4D5AE] bg-[#FBF3E6] p-4 mb-4">
+            <p className="text-[0.82rem] font-medium" style={{ color: '#B56145' }}>{preview.count} booking{preview.count > 1 ? 's' : ''} will be cancelled</p>
+            <p className="text-[0.72rem] font-light text-[#7A7870] mt-1 mb-3">{cancelRemainingOnly ? 'Remaining bookings from now onwards.' : `All bookings ${isRange ? 'in this range' : 'on this date'}.`} Customers will be emailed automatically.</p>
+            <div className="space-y-2 max-h-40 overflow-y-auto">
               {preview.bookings.map(b => (
-                <div key={b.id} className="flex justify-between text-xs text-red-700 bg-white rounded px-3 py-2 border border-red-100">
-                  <span className="font-medium">{b.customer_name}</span>
-                  <span className="text-red-400">{b.service_name} · {new Date(b.start_time).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
+                <div key={b.id} className="flex justify-between text-[0.72rem] bg-white px-3 py-2 border border-[#E4E0D8]">
+                  <span className="font-medium text-[#1A1A18]">{b.customer_name}</span>
+                  <span className="text-[#7A7870] font-light">{b.service_name} · {new Date(b.start_time).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
                 </div>
               ))}
             </div>
           </div>
         )}
         {reason && (
-          <div className="bg-gray-50 rounded p-3 mb-4 text-xs text-gray-600">
-            <span className="font-bold uppercase tracking-widest text-gray-400 block mb-1">Reason</span>{reason}
+          <div className="bg-[#FAFAF8] border border-[#E4E0D8] p-3 mb-4 text-[0.75rem] font-light text-[#7A7870]">
+            <span className="text-[0.6rem] tracking-[0.12em] uppercase block mb-1" style={{ color: '#B8975A' }}>Reason</span>{reason}
           </div>
         )}
         <div className="flex gap-2">
           <button onClick={onConfirm} disabled={saving}
-            className="flex-1 bg-red-600 text-white py-3 text-xs font-bold uppercase tracking-widest hover:bg-red-700 disabled:opacity-50 transition">
+            className="flex-1 py-3 text-[0.72rem] font-medium tracking-[0.12em] uppercase text-white border-none cursor-pointer transition-colors disabled:opacity-50"
+            style={{ background: '#B56145' }}>
             {saving ? 'Processing...' : preview.count > 0 ? `Cancel ${preview.count} Booking${preview.count > 1 ? 's' : ''} & Block` : 'Block Date'}
           </button>
-          <button onClick={onCancel} disabled={saving} className="px-4 py-3 border border-gray-200 text-gray-500 text-xs font-bold uppercase hover:bg-gray-50 transition">Go Back</button>
+          <button onClick={onCancel} disabled={saving} className="px-5 py-3 text-[0.68rem] font-light tracking-[0.1em] uppercase text-[#7A7870] border border-[#E4E0D8] bg-transparent cursor-pointer hover:text-[#1A1A18] hover:border-[#1A1A18] transition-colors">Go Back</button>
         </div>
       </div>
     </div>
@@ -105,14 +123,14 @@ function PricingSlider({ label, value, min, max, step, format, onChange }) {
   return (
     <div>
       <div className="flex justify-between items-baseline mb-2">
-        <span className="text-xs text-gray-500 uppercase tracking-widest">{label}</span>
-        <span className="text-lg font-bold font-mono">{format(value)}</span>
+        <span className="text-[0.62rem] tracking-[0.12em] uppercase text-[#7A7870]">{label}</span>
+        <span className="font-display text-[1.2rem] font-light text-[#1A1A18]">{format(value)}</span>
       </div>
       <input type="range" min={min} max={max} step={step} value={value}
         onChange={e => onChange(parseFloat(e.target.value))}
-        className="w-full h-2 appearance-none cursor-pointer rounded-full"
-        style={{ background: `linear-gradient(to right, #000 ${pct}%, #e5e7eb ${pct}%)` }} />
-      <div className="flex justify-between text-[10px] text-gray-400 mt-1">
+        className="w-full h-1.5 appearance-none cursor-pointer"
+        style={{ background: `linear-gradient(to right, #B8975A ${pct}%, #E4E0D8 ${pct}%)` }} />
+      <div className="flex justify-between text-[0.62rem] font-light text-[#B4A894] mt-1">
         <span>{format(min)}</span><span>{format(max)}</span>
       </div>
     </div>
@@ -124,24 +142,30 @@ function PeakDayToggles({ peakDays, onChange }) {
   return (
     <div>
       <div className="flex justify-between items-baseline mb-2">
-        <span className="text-xs text-gray-500 uppercase tracking-widest">Peak Days</span>
-        <span className="text-xs text-gray-400">{peakDays.length === 0 ? 'None' : peakDays.map(d => DAYS[d]).join(', ')}</span>
+        <span className="text-[0.62rem] tracking-[0.12em] uppercase text-[#7A7870]">Peak Days</span>
+        <span className="text-[0.72rem] font-light text-[#7A7870]">{peakDays.length === 0 ? 'None' : peakDays.map(d => DAYS[d]).join(', ')}</span>
       </div>
       <div className="grid grid-cols-7 gap-1">
         {DAYS.map((day, idx) => (
           <button key={idx} type="button" onClick={() => toggle(idx)}
-            className={`py-2 text-[11px] font-bold uppercase rounded border transition ${peakDays.includes(idx) ? 'bg-orange-500 border-orange-500 text-white' : 'bg-gray-50 border-gray-200 text-gray-400 hover:border-gray-400'}`}>
+            className={`py-2 text-[0.62rem] tracking-[0.1em] uppercase border transition-colors cursor-pointer ${peakDays.includes(idx) ? 'text-white' : 'bg-[#FAFAF8] border-[#E4E0D8] text-[#7A7870] hover:border-[#1A1A18]'}`}
+            style={peakDays.includes(idx) ? { background: '#B8975A', borderColor: '#B8975A' } : {}}>
             {day}
           </button>
         ))}
       </div>
-      <p className="text-[10px] text-gray-400 mt-1">Click to toggle. Orange = peak day.</p>
+      <p className="text-[0.62rem] font-light text-[#B4A894] mt-1">Click to toggle. <span style={{ color: '#B8975A' }}>Gold = peak day.</span></p>
     </div>
   );
 }
 
-function BlockDateSection({ stylist, authHeader, onOverrideSaved }) {
+function BlockDateSection({ stylist, authHeader, onOverrideSaved, allStylistsMode = false }) {
+  const toast = useToast();
+  const confirm = useConfirm();
   const [selectedDate, setSelectedDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [useRange, setUseRange] = useState(false);
+  const [allStylists, setAllStylists] = useState(false);
   const [reasonPreset, setReasonPreset] = useState('');
   const [reasonCustom, setReasonCustom] = useState('');
   const reason = reasonPreset === 'Other' ? reasonCustom : reasonPreset;
@@ -169,56 +193,107 @@ function BlockDateSection({ stylist, authHeader, onOverrideSaved }) {
     if (!selectedDate) return;
     setPreviewing(true);
     try {
+      const body = {
+        stylist_id: stylist.id,
+        override_date: selectedDate,
+        end_date: useRange && endDate ? endDate : null,
+        cancel_remaining_only: cancelRemainingOnly,
+        all_stylists: allStylists,
+      };
       const res = await fetch(`${API_URL}/api/shifts/overrides/preview`, {
         method: 'POST', headers: authHeader,
-        body: JSON.stringify({ stylist_id: stylist.id, override_date: selectedDate, cancel_remaining_only: cancelRemainingOnly }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
-      if (!res.ok) { alert(data.error || 'Failed to preview'); return; }
+      if (!res.ok) { toast.error(data.error || 'Failed to preview'); return; }
       setPreview(data);
-    } catch { alert('Something went wrong'); } finally { setPreviewing(false); }
+    } catch { toast.error('Something went wrong'); } finally { setPreviewing(false); }
   };
 
   const handleConfirm = async () => {
     setSaving(true);
     try {
+      const body = {
+        stylist_id: stylist.id,
+        override_date: selectedDate,
+        end_date: useRange && endDate ? endDate : null,
+        is_working: false,
+        reason: reason || null,
+        cancel_remaining_only: cancelRemainingOnly,
+        all_stylists: allStylists,
+      };
       const res = await fetch(`${API_URL}/api/shifts/overrides`, {
         method: 'POST', headers: authHeader,
-        body: JSON.stringify({ stylist_id: stylist.id, override_date: selectedDate, is_working: false, reason: reason || null, cancel_remaining_only: cancelRemainingOnly }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
-      if (!res.ok) { alert(data.error || 'Failed to save override'); return; }
-      setPreview(null); setSelectedDate(''); setReasonPreset(''); setReasonCustom(''); setCancelRemainingOnly(false);
+      if (!res.ok) { toast.error(data.error || 'Failed to save override'); return; }
+      setPreview(null); setSelectedDate(''); setEndDate(''); setReasonPreset(''); setReasonCustom(''); setCancelRemainingOnly(false); setAllStylists(false); setUseRange(false);
       await fetchOverrides();
       onOverrideSaved(data.cancelledCount);
-    } catch { alert('Something went wrong'); } finally { setSaving(false); }
+    } catch { toast.error('Something went wrong'); } finally { setSaving(false); }
   };
 
   const handleRemoveOverride = async (id) => {
-    if (!confirm('Remove this date block? The stylist will appear available again.')) return;
+    const ok = await confirm({
+      title: 'Remove this date block?',
+      message: 'The stylist will appear available again.',
+      confirmText: 'Remove',
+    });
+    if (!ok) return;
     try {
       const res = await fetch(`${API_URL}/api/shifts/overrides/${id}`, { method: 'DELETE', headers: authHeader });
-      if (!res.ok) { alert('Failed to remove override'); return; }
+      if (!res.ok) { toast.error('Failed to remove override'); return; }
+      toast.success('Date block removed.');
       await fetchOverrides();
-    } catch { alert('Something went wrong'); }
+    } catch { toast.error('Something went wrong'); }
   };
 
   return (
     <div>
-      <p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-3">Date Overrides</p>
-      <p className="text-xs text-gray-400 mb-4">Block a specific date — e.g. sick day, holiday. Confirmed bookings will be auto-cancelled and customers emailed.</p>
-      <div className="bg-gray-50 rounded-lg p-4 space-y-3 mb-4">
-        <div className="grid grid-cols-2 gap-3">
+      <p className="text-[0.62rem] tracking-[0.15em] uppercase mb-1" style={{ color: '#B8975A' }}>Date Overrides</p>
+      <p className="text-[0.75rem] font-light text-[#7A7870] mb-4">Block dates for sick days, holidays, or emergency closures. Confirmed bookings will be auto-cancelled and customers emailed.</p>
+      <div className="bg-[#FAFAF8] border border-[#E4E0D8] p-4 space-y-4 mb-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className="text-[10px] text-gray-500 uppercase tracking-widest block mb-1">Date to Block</label>
+            <label className="text-[0.6rem] tracking-[0.12em] uppercase text-[#7A7870] block mb-1">{useRange ? 'Start Date' : 'Date to Block'}</label>
             <input type="date" min={today} value={selectedDate}
-              onChange={e => { setSelectedDate(e.target.value); setPreview(null); }}
-              className="w-full border border-gray-300 p-2 text-sm bg-white focus:outline-black" />
+              onChange={e => { setSelectedDate(e.target.value); setPreview(null); if (!useRange) setEndDate(''); }}
+              className="w-full border border-[#E4E0D8] p-2.5 text-[0.82rem] font-light bg-white focus:outline-none focus:border-[#B8975A]" />
           </div>
+          {useRange ? (
+            <div>
+              <label className="text-[0.6rem] tracking-[0.12em] uppercase text-[#7A7870] block mb-1">End Date</label>
+              <input type="date" min={selectedDate || today} value={endDate}
+                onChange={e => { setEndDate(e.target.value); setPreview(null); }}
+                className="w-full border border-[#E4E0D8] p-2.5 text-[0.82rem] font-light bg-white focus:outline-none focus:border-[#B8975A]" />
+            </div>
+          ) : (
+            <div>
+              <label className="text-[0.6rem] tracking-[0.12em] uppercase text-[#7A7870] block mb-1">Reason (optional)</label>
+              <select value={reasonPreset} onChange={e => { setReasonPreset(e.target.value); setReasonCustom(''); }}
+                className="w-full border border-[#E4E0D8] p-2.5 text-[0.82rem] font-light bg-white focus:outline-none focus:border-[#B8975A]">
+                <option value="">Select reason...</option>
+                <option value="Sick">Sick</option>
+                <option value="Holiday">Holiday</option>
+                <option value="Emergency">Emergency</option>
+                <option value="Training">Training</option>
+                <option value="Other">Other</option>
+              </select>
+              {reasonPreset === 'Other' && (
+                <input type="text" placeholder="Describe reason..." value={reasonCustom}
+                  onChange={e => setReasonCustom(e.target.value)}
+                  className="w-full border border-[#E4E0D8] p-2.5 text-[0.82rem] font-light bg-white focus:outline-none focus:border-[#B8975A] mt-2" />
+              )}
+            </div>
+          )}
+        </div>
+        {/* Reason row when in range mode */}
+        {useRange && (
           <div>
-            <label className="text-[10px] text-gray-500 uppercase tracking-widest block mb-1">Reason (optional)</label>
+            <label className="text-[0.6rem] tracking-[0.12em] uppercase text-[#7A7870] block mb-1">Reason (optional)</label>
             <select value={reasonPreset} onChange={e => { setReasonPreset(e.target.value); setReasonCustom(''); }}
-              className="w-full border border-gray-300 p-2 text-sm bg-white focus:outline-black">
+              className="w-full border border-[#E4E0D8] p-2.5 text-[0.82rem] font-light bg-white focus:outline-none focus:border-[#B8975A]">
               <option value="">Select reason...</option>
               <option value="Sick">Sick</option>
               <option value="Holiday">Holiday</option>
@@ -229,48 +304,77 @@ function BlockDateSection({ stylist, authHeader, onOverrideSaved }) {
             {reasonPreset === 'Other' && (
               <input type="text" placeholder="Describe reason..." value={reasonCustom}
                 onChange={e => setReasonCustom(e.target.value)}
-                className="w-full border border-gray-300 p-2 text-sm bg-white focus:outline-black mt-2" />
+                className="w-full border border-[#E4E0D8] p-2.5 text-[0.82rem] font-light bg-white focus:outline-none focus:border-[#B8975A] mt-2" />
             )}
           </div>
+        )}
+        {/* Toggles */}
+        <div className="space-y-3">
+          <label className="flex items-center gap-3 cursor-pointer select-none">
+            <div onClick={() => { setUseRange(v => !v); setEndDate(''); setPreview(null); }}
+              className="w-10 h-5 rounded-full transition-colors relative flex-shrink-0"
+              style={{ background: useRange ? '#B8975A' : '#E4E0D8' }}>
+              <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all ${useRange ? 'left-5' : 'left-0.5'}`} />
+            </div>
+            <div>
+              <span className="text-[0.72rem] font-medium text-[#1A1A18]">Multiple days</span>
+              <span className="text-[0.62rem] font-light text-[#7A7870] block">Block a date range instead of a single day</span>
+            </div>
+          </label>
+          <label className="flex items-center gap-3 cursor-pointer select-none">
+            <div onClick={() => { setAllStylists(v => !v); setPreview(null); }}
+              className="w-10 h-5 rounded-full transition-colors relative flex-shrink-0"
+              style={{ background: allStylists ? '#B8975A' : '#E4E0D8' }}>
+              <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all ${allStylists ? 'left-5' : 'left-0.5'}`} />
+            </div>
+            <div>
+              <span className="text-[0.72rem] font-medium text-[#1A1A18]">All stylists</span>
+              <span className="text-[0.62rem] font-light text-[#7A7870] block">Close the whole salon — applies to every stylist</span>
+            </div>
+          </label>
+          <label className="flex items-center gap-3 cursor-pointer select-none">
+            <div onClick={() => setCancelRemainingOnly(v => !v)}
+              className="w-10 h-5 rounded-full transition-colors relative flex-shrink-0"
+              style={{ background: cancelRemainingOnly ? '#B8975A' : '#E4E0D8' }}>
+              <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all ${cancelRemainingOnly ? 'left-5' : 'left-0.5'}`} />
+            </div>
+            <div>
+              <span className="text-[0.72rem] font-medium text-[#1A1A18]">Cancel remaining only</span>
+              <span className="text-[0.62rem] font-light text-[#7A7870] block">Only cancel bookings from now onwards — keeps completed morning appointments intact</span>
+            </div>
+          </label>
         </div>
-        <label className="flex items-center gap-3 cursor-pointer select-none">
-          <div onClick={() => setCancelRemainingOnly(v => !v)}
-            className={`w-10 h-5 rounded-full transition relative flex-shrink-0 ${cancelRemainingOnly ? 'bg-black' : 'bg-gray-300'}`}>
-            <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${cancelRemainingOnly ? 'left-5' : 'left-0.5'}`} />
-          </div>
-          <div>
-            <span className="text-xs font-medium text-gray-700">Cancel remaining only</span>
-            <span className="text-[10px] text-gray-400 block">Only cancel bookings from now onwards — keeps completed morning appointments intact</span>
-          </div>
-        </label>
-        <button onClick={handlePreview} disabled={!selectedDate || previewing}
-          className="w-full border border-black text-black py-2.5 text-xs font-bold uppercase tracking-widest hover:bg-black hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition">
+        <button onClick={handlePreview} disabled={!selectedDate || (useRange && !endDate) || previewing}
+          className="w-full border border-[#1A1A18] text-[#1A1A18] py-3 text-[0.72rem] font-medium tracking-[0.12em] uppercase bg-transparent hover:bg-[#1A1A18] hover:text-white disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors">
           {previewing ? 'Checking bookings...' : 'Check & Block Date'}
         </button>
       </div>
       {overridesLoading ? (
-        <div className="h-10 bg-gray-100 animate-pulse rounded" />
+        <div className="h-10 bg-[#F0EDE5] animate-pulse" />
       ) : overrides.length > 0 ? (
         <div className="space-y-2">
-          <p className="text-[10px] text-gray-400 uppercase tracking-widest mb-2">Active Blocks</p>
+          <p className="text-[0.6rem] tracking-[0.12em] uppercase mb-2" style={{ color: '#B8975A' }}>Active Blocks</p>
           {overrides.map(o => (
-            <div key={o.id} className="flex items-center justify-between bg-red-50 border border-red-100 rounded px-3 py-2">
+            <div key={o.id} className="flex items-center justify-between border border-[#E4D5AE] bg-[#FBF3E6] px-4 py-2.5">
               <div>
-                <span className="text-sm font-bold text-red-700">
+                <span className="text-[0.82rem] font-medium text-[#1A1A18]">
                   {new Date(o.override_date + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
                 </span>
-                {o.reason && <span className="text-xs text-red-400 ml-2">· {o.reason}</span>}
+                {o.reason && <span className="text-[0.72rem] font-light text-[#7A7870] ml-2">· {o.reason}</span>}
               </div>
-              <button onClick={() => handleRemoveOverride(o.id)} className="text-red-400 hover:text-red-600 text-xs font-bold uppercase ml-4">Remove</button>
+              <button onClick={() => handleRemoveOverride(o.id)} className="text-[0.62rem] tracking-[0.1em] uppercase bg-transparent border-none cursor-pointer ml-4 transition-colors" style={{ color: '#B56145' }}>Remove</button>
             </div>
           ))}
         </div>
       ) : (
-        <p className="text-xs text-gray-400 italic">No date blocks set.</p>
+        <p className="text-[0.75rem] font-light text-[#B4A894] italic">No date blocks set.</p>
       )}
       {preview && (
         <OverrideConfirmModal
-          stylistName={stylist.name} overrideDate={selectedDate} preview={preview}
+          stylistName={allStylists ? 'All Stylists' : stylist.name}
+          overrideDate={selectedDate}
+          endDate={useRange ? endDate : null}
+          preview={preview}
           reason={reason} cancelRemainingOnly={cancelRemainingOnly}
           onConfirm={handleConfirm} onCancel={() => setPreview(null)} saving={saving}
         />
@@ -280,6 +384,7 @@ function BlockDateSection({ stylist, authHeader, onOverrideSaved }) {
 }
 
 function StylistCard({ stylist, authHeader, onPricingUpdated }) {
+  const toast = useToast();
   const [multiplier, setMultiplier] = useState(parseFloat(stylist.price_multiplier) || 1.0);
   const [peakPercent, setPeakPercent] = useState(parseFloat(stylist.peak_surcharge_percent) ?? 15);
   const [peakDays, setPeakDays] = useState(stylist.peak_days ?? [5, 6]);
@@ -316,10 +421,10 @@ function StylistCard({ stylist, authHeader, onPricingUpdated }) {
         method: 'PUT', headers: authHeader,
         body: JSON.stringify({ price_multiplier: multiplier, peak_surcharge_percent: peakPercent, peak_days: peakDays, peak_hour_start: peakHourStart }),
       });
-      if (!res.ok) { const err = await res.json(); alert(err.error || 'Failed to save pricing'); return; }
+      if (!res.ok) { const err = await res.json(); toast.error(err.error || 'Failed to save pricing'); return; }
       setPricingSaved(true); onPricingUpdated();
       setTimeout(() => setPricingSaved(false), 2500);
-    } catch { alert('Something went wrong'); } finally { setSavingPricing(false); }
+    } catch { toast.error('Something went wrong'); } finally { setSavingPricing(false); }
   };
 
   const handleSaveShift = async ({ day_of_week, start_time, end_time }, existingId) => {
@@ -348,44 +453,45 @@ function StylistCard({ stylist, authHeader, onPricingUpdated }) {
   };
 
   return (
-    <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
-      {overrideBanner && <div className="bg-green-600 text-white text-xs font-bold px-6 py-3">{overrideBanner}</div>}
-      <div className="bg-gray-50 border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+    <div className="bg-white border border-[#E4E0D8] overflow-hidden">
+      {overrideBanner && <div className="text-[0.72rem] font-medium tracking-[0.1em] uppercase px-6 py-3" style={{ background: '#B8975A', color: '#fff' }}>{overrideBanner}</div>}
+      <div className="bg-[#FAFAF8] border-b border-[#E4E0D8] px-6 py-5 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
-          <h3 className="font-bold text-gray-900">{stylist.name}</h3>
-          <p className="text-xs text-gray-400">{stylist.email}</p>
+          <h3 className="font-display text-[1.4rem] font-medium text-[#1A1A18]">{stylist.name}</h3>
+          <p className="text-[0.72rem] font-light text-[#7A7870]">{stylist.email}</p>
         </div>
-        <div className="text-right">
-          <p className="text-xs text-gray-400">£{EXAMPLE_BASE} base →</p>
-          <p className="text-sm font-bold text-gray-700">£{previewNormal} <span className="font-normal text-gray-400">/ peak</span> £{previewPeak}</p>
+        <div className="text-left sm:text-right">
+          <p className="text-[0.62rem] tracking-[0.15em] uppercase" style={{ color: '#B8975A' }}>£{EXAMPLE_BASE} base</p>
+          <p className="font-display text-[1.1rem] font-light text-[#1A1A18]">£{previewNormal} <span className="text-[0.78rem] font-light text-[#7A7870]">/ peak</span> £{previewPeak}</p>
         </div>
       </div>
       <div className="p-6 space-y-8">
         <div className="space-y-5">
-          <p className="text-xs font-bold uppercase tracking-widest text-gray-400">Pricing</p>
+          <p className="text-[0.62rem] tracking-[0.15em] uppercase" style={{ color: '#B8975A' }}>Pricing</p>
           <PricingSlider label="Price Multiplier" value={multiplier} min={0.8} max={2.0} step={0.05} format={v => `×${v.toFixed(2)}`} onChange={setMultiplier} />
           <PricingSlider label="Peak Surcharge" value={peakPercent} min={0} max={50} step={1} format={v => `+${v}%`} onChange={setPeakPercent} />
           <PeakDayToggles peakDays={peakDays} onChange={setPeakDays} />
           <PricingSlider label="Evening Peak From" value={peakHourStart} min={14} max={20} step={1} format={formatHour} onChange={v => setPeakHourStart(Math.round(v))} />
-          <div className="bg-gray-50 rounded p-3 flex gap-6 text-sm">
+          <div className="bg-[#FAFAF8] border border-[#E4E0D8] p-4 flex gap-6">
             <div>
-              <span className="text-xs text-gray-400 block">Standard (£{EXAMPLE_BASE})</span>
-              <span className="font-bold font-mono">£{previewNormal}</span>
+              <span className="text-[0.62rem] tracking-[0.1em] uppercase text-[#7A7870] block">Standard (£{EXAMPLE_BASE})</span>
+              <span className="font-display text-[1.2rem] font-light text-[#1A1A18]">£{previewNormal}</span>
             </div>
             <div>
-              <span className="text-xs text-orange-500 block">⚡ Peak · {peakDays.map(d => DAYS[d]).join(', ') || 'None'} + after {formatHour(peakHourStart)}</span>
-              <span className="font-bold font-mono text-orange-600">£{previewPeak}</span>
+              <span className="text-[0.62rem] tracking-[0.1em] uppercase block" style={{ color: '#B8975A' }}>⚡ Peak · {peakDays.map(d => DAYS[d]).join(', ') || 'None'} + after {formatHour(peakHourStart)}</span>
+              <span className="font-display text-[1.2rem] font-light" style={{ color: '#B8975A' }}>£{previewPeak}</span>
             </div>
           </div>
           <button onClick={handleSavePricing} disabled={savingPricing}
-            className={`w-full py-2.5 text-xs font-bold uppercase tracking-widest transition ${pricingSaved ? 'bg-green-600 text-white' : 'bg-black text-white hover:bg-gray-800 disabled:opacity-50'}`}>
+            className={`w-full py-3 text-[0.72rem] font-medium tracking-[0.12em] uppercase transition-colors border-none cursor-pointer ${pricingSaved ? 'text-white' : 'bg-[#1A1A18] text-white hover:bg-[#B8975A] disabled:opacity-50'}`}
+            style={pricingSaved ? { background: '#B8975A' } : {}}>
             {pricingSaved ? '✓ Saved' : savingPricing ? 'Saving...' : 'Save Pricing'}
           </button>
         </div>
         <div>
-          <p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-3">Weekly Schedule</p>
+          <p className="text-[0.62rem] tracking-[0.15em] uppercase mb-3" style={{ color: '#B8975A' }}>Weekly Schedule</p>
           {shiftsLoading ? (
-            <div className="grid grid-cols-7 gap-1">{DAYS.map(d => <div key={d} className="h-16 bg-gray-100 animate-pulse rounded" />)}</div>
+            <div className="grid grid-cols-7 gap-1">{DAYS.map(d => <div key={d} className="h-16 bg-[#F0EDE5] animate-pulse" />)}</div>
           ) : (
             <div className="grid grid-cols-7 gap-1">
               {DAYS.map((day, idx) => {
@@ -393,21 +499,22 @@ function StylistCard({ stylist, authHeader, onPricingUpdated }) {
                 const isPeakDay = peakDays.includes(idx);
                 return (
                   <button key={idx} onClick={() => setShiftModal({ dayIndex: idx, existingShift: shift })}
-                    className={`flex flex-col items-center justify-center p-2 rounded border min-h-[4rem] text-center transition hover:border-black hover:shadow-sm group
-                      ${shift ? isPeakDay ? 'bg-orange-50 border-orange-200 text-orange-800' : 'bg-black border-black text-white' : 'bg-gray-50 border-gray-200 text-gray-400 border-dashed'}`}>
-                    <span className="text-[10px] font-bold uppercase tracking-wider block">{day}</span>
+                    className={`flex flex-col items-center justify-center p-2 border min-h-[4.2rem] text-center transition-colors group cursor-pointer
+                      ${shift ? isPeakDay ? 'text-white' : 'bg-[#1A1A18] border-[#1A1A18] text-white' : 'bg-[#FAFAF8] border-[#E4E0D8] text-[#7A7870]'}`}
+                    style={shift && isPeakDay ? { background: '#B8975A', borderColor: '#B8975A' } : {}}>
+                    <span className="text-[0.6rem] tracking-[0.1em] uppercase block">{day}</span>
                     {shift ? (
-                      <><span className="text-[9px] mt-1 block font-mono leading-tight">{shift.start_time?.slice(0, 5)}</span>
-                      <span className="text-[9px] block font-mono leading-tight">{shift.end_time?.slice(0, 5)}</span></>
-                    ) : <span className="text-[10px] mt-1 opacity-50 group-hover:opacity-100">+ Add</span>}
+                      <><span className="text-[0.65rem] mt-1 block font-light leading-tight">{shift.start_time?.slice(0, 5)}</span>
+                      <span className="text-[0.65rem] block font-light leading-tight">{shift.end_time?.slice(0, 5)}</span></>
+                    ) : <span className="text-[0.6rem] mt-1 opacity-60 group-hover:opacity-100">+ Add</span>}
                   </button>
                 );
               })}
             </div>
           )}
-          <p className="text-[10px] text-gray-400 mt-2">Click any day to add, edit or remove a shift. <span className="text-orange-500">Orange = peak day.</span></p>
+          <p className="text-[0.65rem] font-light text-[#7A7870] mt-2">Click any day to add, edit or remove a shift. <span style={{ color: '#B8975A' }}>Gold = peak day.</span></p>
         </div>
-        <div className="border-t border-gray-100" />
+        <div className="border-t border-[#E4E0D8]" />
         <BlockDateSection stylist={stylist} authHeader={authHeader} onOverrideSaved={handleOverrideSaved} />
       </div>
       {shiftModal && (
@@ -434,17 +541,20 @@ export default function AdminStylists({ authHeader }) {
   useEffect(() => { fetchStylists(); }, []);
 
   if (loading) {
-    return <div className="space-y-4">{[1, 2].map(i => <div key={i} className="h-64 bg-white border border-gray-200 rounded-lg animate-pulse" />)}</div>;
+    return <div className="space-y-4">{[1, 2].map(i => <div key={i} className="h-64 bg-white border border-[#E4E0D8] animate-pulse" />)}</div>;
   }
 
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="font-bold text-lg uppercase tracking-widest">Stylist Management</h2>
-        <p className="text-xs text-gray-400 mt-1">Manage pricing, weekly schedules, and date overrides per stylist.</p>
+        <p className="text-[0.62rem] tracking-[0.15em] uppercase mb-1" style={{ color: '#B8975A' }}>Stylists</p>
+        <h2 className="font-display text-[1.6rem] font-light text-[#1A1A18]">Stylist Management</h2>
+        <p className="text-[0.78rem] font-light text-[#7A7870] mt-1">Manage pricing, weekly schedules, and date overrides per stylist.</p>
       </div>
       {stylists.length === 0 ? (
-        <div className="bg-white border border-gray-200 rounded-lg p-16 text-center text-gray-400">No stylists found.</div>
+        <div className="bg-white border border-[#E4E0D8] p-16 text-center">
+          <p className="font-display text-[1.2rem] font-light text-[#7A7870]">No stylists found.</p>
+        </div>
       ) : (
         <div className="space-y-6">{stylists.map(s => <StylistCard key={s.id} stylist={s} authHeader={authHeader} onPricingUpdated={fetchStylists} />)}</div>
       )}

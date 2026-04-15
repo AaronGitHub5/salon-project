@@ -94,6 +94,20 @@ async function updateProfile(id, { full_name, phone_number }) {
   return data;
 }
 
+async function searchCustomers(query) {
+  const q = query.trim().toLowerCase();
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, full_name, email, phone_number')
+    .eq('role', 'customer')
+    .or(`full_name.ilike.%${q}%,email.ilike.%${q}%,phone_number.ilike.%${q}%`)
+    .limit(10);
+
+  if (error) throw error;
+  return data || [];
+}
+
 module.exports = {
   getProfileById,
   updateLoyaltyPoints,
@@ -102,4 +116,5 @@ module.exports = {
   getVouchers,
   lookupVoucherByCode,
   markVoucherUsed,
+  searchCustomers,
 };

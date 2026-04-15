@@ -28,6 +28,15 @@ async function getPendingReviews(req, res) {
   }
 }
 
+async function getApprovedReviews(req, res) {
+  try {
+    const reviews = await reviewsService.getApprovedReviews();
+    res.json(reviews);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
 async function approveReview(req, res) {
   try {
     const review = await reviewsService.approveReview(req.params.id);
@@ -37,4 +46,13 @@ async function approveReview(req, res) {
   }
 }
 
-module.exports = { submitReview, getReviewsSummary, getPendingReviews, approveReview };
+async function deleteReview(req, res) {
+  try {
+    await reviewsService.deleteReview(req.params.id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
+module.exports = { submitReview, getReviewsSummary, getPendingReviews, getApprovedReviews, approveReview, deleteReview };

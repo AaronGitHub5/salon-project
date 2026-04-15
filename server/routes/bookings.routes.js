@@ -8,6 +8,7 @@ router.get('/', verifyToken, requireRole('admin'), bookingsController.getAll);
 router.post('/', verifyToken, bookingsController.create);
 router.post('/guest', verifyToken, requireRole('admin'), bookingsController.createGuest);
 router.get('/search', verifyToken, requireRole('admin'), bookingsController.searchBookings);
+router.get('/pending/all', verifyToken, requireRole('stylist'), bookingsController.getAllPending);
 router.get('/customer/:id', verifyToken, bookingsController.getByCustomer);
 router.get('/stylist/:id', verifyToken, requireRole('stylist'), bookingsController.getByStylist);
 router.get('/stylist/:id/pending', verifyToken, requireRole('stylist'), bookingsController.getPendingForStylist);

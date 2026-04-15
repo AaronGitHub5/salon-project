@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import { supabase } from './lib/supabase';
+import { useToast } from './Notifications';
 import BookingModal from './BookingModal';
 import ReviewModal from './ReviewModal';
 import API_URL from './config';
@@ -33,6 +34,7 @@ function svcIcon(name = "") {
 export default function CustomerView() {
   const { user, role, session, signOut } = useAuth();
   const navigate = useNavigate();
+  const toast = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [services, setServices] = useState([]);
@@ -89,7 +91,7 @@ export default function CustomerView() {
       setBookingSuccess({ pending: isPending, points });
     } else {
       const err = await response.json().catch(() => ({}));
-      alert(`Failed to book: ${err.error || response.status}`);
+      toast.error(`Failed to book: ${err.error || response.status}`);
     }
   };
 

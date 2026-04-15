@@ -56,4 +56,17 @@ async function updateProfile(req, res) {
   }
 }
 
-module.exports = { redeemPoints, getVouchers, lookupVoucher, markVoucherUsed, updateProfile };
+async function searchCustomers(req, res) {
+  try {
+    const q = req.query.q;
+    if (!q || q.trim().length < 2) {
+      return res.status(400).json({ error: 'Search query must be at least 2 characters.' });
+    }
+    const data = await profilesDao.searchCustomers(q);
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
+module.exports = { redeemPoints, getVouchers, lookupVoucher, markVoucherUsed, updateProfile, searchCustomers };

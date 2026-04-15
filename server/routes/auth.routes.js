@@ -1,11 +1,13 @@
 const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
 const supabase = require('../supabaseClient');
+const { strictLimiter } = require('../middleware/rateLimiter');
 const router = express.Router();
 
 // POST /api/auth/reset-password
 // Uses the user's access token to identify them, then updates password via admin API
-router.post('/reset-password', async (req, res) => {
+// Rate-limited to 10 attempts per 15 min per IP to slow down brute-force attempts
+router.post('/reset-password', strictLimiter, async (req, res) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Missing authorization header.' });
@@ -35,7 +37,8 @@ router.post('/reset-password', async (req, res) => {
 
 // POST /api/auth/change-password
 // Authenticated user changes their own password (requires current password)
-router.post('/change-password', async (req, res) => {
+// Rate-limited to 10 attempts per 15 min per IP to slow down brute-force attempts
+router.post('/change-password', strictLimiter, async (req, res) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Missing authorization header.' });

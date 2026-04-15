@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import { supabase } from './lib/supabase';
+import { useToast, useConfirm } from './Notifications';
 import API_URL from './config';
 import BookingModal from './BookingModal';
 
@@ -51,6 +52,8 @@ function FeedbackMsg({ type, msg }) {
 export default function Profile() {
   const { user, role, session } = useAuth();
   const navigate = useNavigate();
+  const toast = useToast();
+  const confirm = useConfirm();
 
   const isCustomer = role === 'customer' || !role;
   const tabs = isCustomer ? ['appointments', 'loyalty', 'settings'] : ['settings'];
@@ -121,10 +124,19 @@ export default function Profile() {
   }, [activeTab]);
 
   const handleCancel = async (bookingId) => {
-    if (!confirm('Cancel this appointment?')) return;
+    const ok = await confirm({
+      title: 'Cancel this appointment?',
+      message: 'This cannot be undone. You will receive a confirmation email.',
+      confirmText: 'Cancel Appointment',
+      cancelText: 'Keep',
+      destructive: true,
+    });
+    if (!ok) return;
     const res = await fetch(`${API_URL}/api/bookings/${bookingId}/cancel`, { method: 'PUT', headers: authHeader });
-    if (res.ok) setAppointments(prev => prev.filter(b => b.id !== bookingId));
-    else alert('Failed to cancel booking.');
+    if (res.ok) {
+      setAppointments(prev => prev.filter(b => b.id !== bookingId));
+      toast.success('Appointment cancelled.');
+    } else toast.error('Failed to cancel booking.');
   };
 
   const handleReschedule = async (stylistId, newStartTime) => {
@@ -133,14 +145,14 @@ export default function Profile() {
       body: JSON.stringify({ new_start_time: newStartTime }),
     });
     if (res.ok) {
-      alert('Booking rescheduled! Check your email for confirmation.');
+      toast.success('Booking rescheduled! Check your email for confirmation.');
       setReschedulingBooking(null);
       const refreshRes = await fetch(`${API_URL}/api/bookings/customer/${user.id}`, { headers: authHeader });
       const data = await refreshRes.json();
       setAppointments(Array.isArray(data) ? data : []);
     } else {
       const err = await res.json().catch(() => ({}));
-      alert(`Failed to reschedule: ${err.error || res.status}`);
+      toast.error(`Failed to reschedule: ${err.error || res.status}`);
     }
   };
 
@@ -151,12 +163,17 @@ export default function Profile() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a'); a.href = url; a.download = `booking-${bookingId}.ics`; a.click();
       window.URL.revokeObjectURL(url);
-    } else alert('Failed to export calendar file.');
+    } else toast.error('Failed to export calendar file.');
   };
 
   const handleRedeem = async () => {
     if (points < LOYALTY_GOAL) return;
-    if (!confirm('Redeem your 10 visits for a 10% discount voucher?')) return;
+    const ok = await confirm({
+      title: 'Redeem your voucher?',
+      message: 'Use your 10 visits for a 10% discount voucher on your next appointment.',
+      confirmText: 'Redeem',
+    });
+    if (!ok) return;
     setRedeeming(true);
     try {
       const res = await fetch(`${API_URL}/api/profiles/redeem`, { method: 'POST', headers: authHeader });
@@ -164,8 +181,9 @@ export default function Profile() {
       if (res.ok) {
         setVoucherCode(data.code); setPoints(data.visitsRemaining);
         setVouchers(prev => [{ id: data.voucherId, code: data.code, discount: data.discount, used: false, created_at: new Date().toISOString() }, ...prev]);
-      } else alert(data.error || 'Failed to redeem points.');
-    } catch { alert('Something went wrong.'); } finally { setRedeeming(false); }
+        toast.success('Voucher redeemed successfully.');
+      } else toast.error(data.error || 'Failed to redeem points.');
+    } catch { toast.error('Something went wrong.'); } finally { setRedeeming(false); }
   };
 
   const handleSaveInfo = async (e) => {

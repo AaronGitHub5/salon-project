@@ -16,4 +16,12 @@ async function deleteService(id) {
   return servicesDao.deleteService(id);
 }
 
-module.exports = { getAllServices, createService, updateService, deleteService };
+async function getInactiveServices() {
+  return servicesDao.getInactiveServices();
+}
+
+async function restoreService(id) {
+  return servicesDao.restoreService(id);
+}
+
+module.exports = { getAllServices, createService, updateService, deleteService, getInactiveServices, restoreService };

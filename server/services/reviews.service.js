@@ -33,8 +33,16 @@ async function getPendingReviews() {
   return reviewsDao.getPendingReviews();
 }
 
+async function getApprovedReviews() {
+  return reviewsDao.getApprovedReviews();
+}
+
 async function approveReview(id) {
   return reviewsDao.approveReview(id);
 }
 
-module.exports = { submitReview, getReviewsSummary, getPendingReviews, approveReview };
+async function deleteReview(id) {
+  return reviewsDao.deleteReview(id);
+}
+
+module.exports = { submitReview, getReviewsSummary, getPendingReviews, getApprovedReviews, approveReview, deleteReview };

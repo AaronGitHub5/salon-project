@@ -4,6 +4,7 @@ async function getAllServices() {
   const { data, error } = await supabase
     .from('services')
     .select('*')
+    .eq('active', true)
     .order('category')
     .order('name');
   if (error) throw error;
@@ -31,9 +32,32 @@ async function updateService(id, { name, base_price, duration_minutes, category 
   return data;
 }
 
+// Soft delete — sets active=false so the service disappears from the menu
+// but historical bookings that reference it still resolve correctly.
 async function deleteService(id) {
-  const { error } = await supabase.from('services').delete().eq('id', id);
+  const { error } = await supabase
+    .from('services')
+    .update({ active: false })
+    .eq('id', id);
   if (error) throw error;
 }
 
-module.exports = { getAllServices, createService, updateService, deleteService };
+async function getInactiveServices() {
+  const { data, error } = await supabase
+    .from('services')
+    .select('*')
+    .eq('active', false)
+    .order('name');
+  if (error) throw error;
+  return data;
+}
+
+async function restoreService(id) {
+  const { error } = await supabase
+    .from('services')
+    .update({ active: true })
+    .eq('id', id);
+  if (error) throw error;
+}
+
+module.exports = { getAllServices, createService, updateService, deleteService, getInactiveServices, restoreService };
