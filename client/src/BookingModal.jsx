@@ -77,10 +77,19 @@ export default function BookingModal({ service, onClose, onConfirm }) {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!selectedStylist || !selectedDate || !selectedTime) return;
-    const year = selectedDate.getFullYear();
-    const month = String(selectedDate.getMonth() + 1).padStart(2, "0");
-    const day = String(selectedDate.getDate()).padStart(2, "0");
-    onConfirm(selectedStylist, `${year}-${month}-${day}T${selectedTime}:00`);
+    // Build a Date in the user's local timezone, then serialise as UTC ISO.
+    // This avoids timezone-guessing on the server: "09:00 local" always arrives
+    // as the correct UTC instant regardless of where the server is running.
+    const [hour, minute] = selectedTime.split(':').map(Number);
+    const localDate = new Date(
+      selectedDate.getFullYear(),
+      selectedDate.getMonth(),
+      selectedDate.getDate(),
+      hour,
+      minute,
+      0
+    );
+    onConfirm(selectedStylist, localDate.toISOString());
   };
 
   const getDaysInMonth = (date) => {
