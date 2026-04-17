@@ -312,9 +312,16 @@ async function exportBookingIcs(id) {
   const start = new Date(booking.start_time);
   const end = new Date(booking.end_time);
 
+  // Use UTC components and tell the ics library they're UTC — the calendar app
+  // will then convert to the user's local zone. Using local getHours() without
+  // a timezone tag produces "floating time" which shifts by the server's TZ.
   const event = {
-    start: [start.getFullYear(), start.getMonth() + 1, start.getDate(), start.getHours(), start.getMinutes()],
-    end: [end.getFullYear(), end.getMonth() + 1, end.getDate(), end.getHours(), end.getMinutes()],
+    start: [start.getUTCFullYear(), start.getUTCMonth() + 1, start.getUTCDate(), start.getUTCHours(), start.getUTCMinutes()],
+    startInputType: 'utc',
+    startOutputType: 'utc',
+    end: [end.getUTCFullYear(), end.getUTCMonth() + 1, end.getUTCDate(), end.getUTCHours(), end.getUTCMinutes()],
+    endInputType: 'utc',
+    endOutputType: 'utc',
     title: `${booking.services.name} at Hair By Amnesia`,
     description: `Stylist: ${booking.stylists.name}`,
     location: 'Hair By Amnesia',
