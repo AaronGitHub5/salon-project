@@ -2,6 +2,16 @@ const { Resend } = require('resend');
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
+// Format a UTC timestamp as London wall-clock time (BST or GMT depending on
+// the date). Required because the server runs in UTC on Render but customers
+// expect UK time in their emails.
+function formatUk(startTime, opts = {}) {
+  return new Date(startTime).toLocaleString('en-GB', {
+    timeZone: 'Europe/London',
+    ...opts,
+  });
+}
+
 const EMAIL_HEADER = `
   <div style="background:#1A1A18;padding:24px 32px;">
     <span style="font-family:'Cormorant Garamond',Georgia,serif;font-size:1.3rem;color:#fff;font-weight:500;letter-spacing:0.02em;">
@@ -93,7 +103,7 @@ function bookingConfirmationTemplate({ fullName, serviceName, stylistName, start
     ${detailsTable([
       tableRow('Service', serviceName),
       tableRow('Stylist', stylistName),
-      tableRow('Date &amp; Time', new Date(startTime).toLocaleString('en-GB')),
+      tableRow('Date &amp; Time', formatUk(startTime)),
       priceRow,
     ].filter(Boolean))}
     <p style="font-size:0.85rem;font-weight:300;color:#7A7870;line-height:1.6;">We look forward to seeing you!</p>
@@ -114,7 +124,7 @@ function bookingPendingTemplate({ fullName, serviceName, stylistName, startTime,
     ${detailsTable([
       tableRow('Service', serviceName),
       tableRow('Stylist', stylistName),
-      tableRow('Requested Time', new Date(startTime).toLocaleString('en-GB')),
+      tableRow('Requested Time', formatUk(startTime)),
       tableRow('Price', `£${price}`),
       tableRow('Status', 'Pending Approval'),
     ])}
@@ -134,7 +144,7 @@ function bookingRejectionTemplate({ fullName, serviceName, stylistName, startTim
     ${detailsTable([
       tableRow('Service', serviceName),
       tableRow('Stylist', stylistName),
-      tableRow('Requested Time', new Date(startTime).toLocaleString('en-GB')),
+      tableRow('Requested Time', formatUk(startTime)),
     ])}
     <p style="font-size:0.85rem;font-weight:300;color:#7A7870;line-height:1.6;">
   We hope to find a time that works for you. Browse availability and book whenever suits you best.
@@ -159,7 +169,7 @@ function cancellationTemplate({ serviceName }) {
 }
 
 function overrideCancellationTemplate({ fullName, serviceName, stylistName, startTime, reason }) {
-  const formattedDate = new Date(startTime).toLocaleString('en-GB', {
+  const formattedDate = formatUk(startTime, {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
     hour: '2-digit', minute: '2-digit',
   });
@@ -195,7 +205,7 @@ function rescheduleTemplate({ fullName, serviceName, stylistName, newStartTime }
     ${detailsTable([
       tableRow('Service', serviceName),
       tableRow('Stylist', stylistName),
-      tableRow('New Date &amp; Time', new Date(newStartTime).toLocaleString('en-GB')),
+      tableRow('New Date &amp; Time', formatUk(newStartTime)),
     ])}
     <p style="font-size:0.85rem;font-weight:300;color:#7A7870;line-height:1.6;">See you then!</p>
   `);
@@ -231,7 +241,7 @@ function reminderTemplate({ fullName, serviceName, stylistName, startTime, windo
     ${detailsTable([
       tableRow('Service', serviceName),
       tableRow('Stylist', stylistName),
-      tableRow('Date &amp; Time', new Date(startTime).toLocaleString('en-GB')),
+      tableRow('Date &amp; Time', formatUk(startTime)),
     ])}
     <p style="font-size:0.85rem;font-weight:300;color:#7A7870;line-height:1.6;">We look forward to seeing you!</p>
     <p style="font-size:0.78rem;font-weight:300;color:#B4A894;margin-top:16px;">
