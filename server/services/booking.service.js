@@ -133,15 +133,19 @@ async function createGuestBooking({ guestName, guestPhone, guestEmail, serviceId
     stylist.peak_hour_start ?? 17
   );
 
+  // Best-effort email delivery. Booking persists even if Resend is unavailable;
+  // emailSent is returned so the admin UI can warn the operator to contact the
+  // guest manually if delivery failed.
+  let emailSent = null; // null = didn't attempt, true = delivered, false = failed
   if (guestEmail) {
-    await sendEmail(
+    emailSent = await sendEmail(
       guestEmail,
       'Booking Confirmed - Hair By Amnesia',
       bookingConfirmationTemplate({ fullName: guestName, serviceName: service.name, stylistName: stylist.name, startTime: start, price: finalPrice })
     );
   }
 
-  return { guest, booking, price: finalPrice };
+  return { guest, booking, price: finalPrice, emailSent };
 }
 
 async function approveBooking(id, userEmail) {
@@ -245,9 +249,23 @@ async function completeBooking(id, userEmail) {
   await bookingsDao.completeBooking(id);
 
   if (booking.customer_id) {
-    const profile = await profilesDao.getProfileById(booking.customer_id);
-    const newVisits = (profile.loyalty_points || 0) + 1;
-    await profilesDao.updateLoyaltyPoints(booking.customer_id, newVisits);
+    // Atomic increment with optimistic retry — prevents lost updates if two
+    // bookings for the same customer are marked complete in quick succession.
+    let profile;
+    let newVisits;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      profile = await profilesDao.getProfileById(booking.customer_id);
+      const current = profile.loyalty_points || 0;
+      newVisits = current + 1;
+      const { data: updated } = await supabase
+        .from('profiles')
+        .update({ loyalty_points: newVisits })
+        .eq('id', booking.customer_id)
+        .eq('loyalty_points', current)
+        .select('loyalty_points');
+      if (updated && updated.length > 0) break;
+      if (attempt === 4) throw new Error('Loyalty update failed after retries');
+    }
 
     if (profile?.email) {
       await sendEmail(
@@ -305,9 +323,14 @@ async function rescheduleBooking(id, newStartTime, userId) {
   return updated;
 }
 
-async function exportBookingIcs(id) {
+async function exportBookingIcs(id, userId) {
   const booking = await bookingsDao.getBookingById(id);
   if (!booking) throw Object.assign(new Error('Booking not found'), { status: 404 });
+
+  // Ownership check: only the booking's customer (or admin) can export the ICS.
+  // Without this, any authenticated user could download any booking's calendar
+  // invite by guessing the ID, leaking service / stylist / date / location.
+  await assertCanModifyCustomerBooking(booking, userId);
 
   const start = new Date(booking.start_time);
   const end = new Date(booking.end_time);

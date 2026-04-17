@@ -132,7 +132,7 @@ async function reschedule(req, res) {
 
 async function exportIcs(req, res) {
   try {
-    const icsContent = await bookingService.exportBookingIcs(req.params.id);
+    const icsContent = await bookingService.exportBookingIcs(req.params.id, req.user.id);
     res.setHeader('Content-Type', 'text/calendar');
     res.setHeader('Content-Disposition', `attachment; filename="booking-${req.params.id}.ics"`);
     res.send(icsContent);

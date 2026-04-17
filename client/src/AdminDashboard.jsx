@@ -522,10 +522,15 @@ export default function AdminDashboard() {
         body: JSON.stringify(bookingData),
       });
       if (res.ok) {
+        const result = await res.json().catch(() => ({}));
+        // emailSent: null = no email provided, true = delivered, false = all retries failed
+        const emailFailed = result.emailSent === false;
         setShowGuestModal(false);
         setSuccessMessage({
           title: 'Guest Booking Made',
-          subtitle: 'The booking has been confirmed and the customer will receive an email if one was provided.',
+          subtitle: emailFailed
+            ? 'Booking created, but the confirmation email could not be delivered. Please contact the guest directly.'
+            : 'The booking has been confirmed and the customer will receive an email if one was provided.',
         });
         setGuestBookingSuccess(true);
       } else {

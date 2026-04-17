@@ -77,7 +77,8 @@ async function initMail() {
   console.log(' Mail System Ready (Resend)');
 }
 
-async function sendEmail(to, subject, html) {
+// Single send attempt. Returns true if Resend accepted the email, false otherwise.
+async function sendEmailOnce(to, subject, html) {
   try {
     const { data, error } = await resend.emails.send({
       from: 'Hair By Amnesia <no-reply@hairbyamnesia.co.uk>',
@@ -85,11 +86,28 @@ async function sendEmail(to, subject, html) {
       subject,
       html,
     });
-    if (error) { console.error('Resend error:', error); return; }
+    if (error) { console.error('Resend error:', error); return false; }
     console.log(` Email sent → ${to} | ID: ${data.id}`);
+    return true;
   } catch (err) {
     console.error('sendEmail failed:', err);
+    return false;
   }
+}
+
+// Send with exponential backoff retry (3 attempts: 0s, 1s, 2s).
+// Returns true if any attempt succeeds, false if all fail. Never throws — callers
+// that care about delivery should check the return value and surface a warning.
+async function sendEmail(to, subject, html, attempts = 3) {
+  for (let i = 0; i < attempts; i++) {
+    const ok = await sendEmailOnce(to, subject, html);
+    if (ok) return true;
+    if (i < attempts - 1) {
+      await new Promise((r) => setTimeout(r, 1000 * (i + 1)));
+    }
+  }
+  console.warn(`sendEmail: gave up after ${attempts} attempts → ${to}`);
+  return false;
 }
 
 function bookingConfirmationTemplate({ fullName, serviceName, stylistName, startTime, price }) {

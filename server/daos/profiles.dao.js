@@ -1,4 +1,5 @@
 const supabase = require('../supabaseClient');
+const crypto = require('crypto');
 
 async function getProfileById(id) {
   const { data, error } = await supabase
@@ -21,14 +22,32 @@ async function updateLoyaltyPoints(id, newPoints) {
 async function redeemPoints(id) {
   const profile = await getProfileById(id);
   if (!profile) throw Object.assign(new Error('Profile not found'), { status: 404 });
-  if ((profile.loyalty_points || 0) < 10) {
+  const current = profile.loyalty_points || 0;
+  if (current < 10) {
     throw Object.assign(new Error('You need 10 visits to redeem a voucher.'), { status: 400 });
   }
 
-  const remaining = profile.loyalty_points - 10;
-  await updateLoyaltyPoints(id, remaining);
+  // Optimistic-concurrency guard: only decrement if the row's current points
+  // still match what we just read. This prevents double-voucher exploits from
+  // two parallel redemption requests.
+  const remaining = current - 10;
+  const { data: updated, error: updateError } = await supabase
+    .from('profiles')
+    .update({ loyalty_points: remaining })
+    .eq('id', id)
+    .eq('loyalty_points', current)
+    .select('loyalty_points');
+  if (updateError) throw updateError;
+  if (!updated || updated.length === 0) {
+    throw Object.assign(
+      new Error('Redemption failed — please refresh and try again.'),
+      { status: 409 }
+    );
+  }
 
-  const code = 'AMNESIA10-' + Math.random().toString(36).substring(2, 7).toUpperCase();
+  // Cryptographically-strong 10-hex-char code (1 trillion combinations — birthday
+  // collisions are negligible even at high voucher volume).
+  const code = 'AMNESIA10-' + crypto.randomBytes(5).toString('hex').toUpperCase();
 
   const { data: voucher, error } = await supabase
     .from('vouchers')
@@ -68,15 +87,20 @@ async function lookupVoucherByCode(code) {
 }
 
 async function markVoucherUsed(voucherId) {
+  // Atomic guard: only transition used=false → true. If the voucher has already
+  // been marked used (e.g., admin double-clicked), the update affects zero rows
+  // and we return a 409 so the UI can refresh rather than silently "succeeding".
   const { data, error } = await supabase
     .from('vouchers')
     .update({ used: true })
     .eq('id', voucherId)
-    .select()
-    .single();
+    .eq('used', false)
+    .select();
   if (error) throw error;
-  if (!data) throw Object.assign(new Error('Voucher not found'), { status: 404 });
-  return data;
+  if (!data || data.length === 0) {
+    throw Object.assign(new Error('Voucher is already used or does not exist.'), { status: 409 });
+  }
+  return data[0];
 }
 
 async function updateProfile(id, { full_name, phone_number }) {
@@ -95,7 +119,15 @@ async function updateProfile(id, { full_name, phone_number }) {
 }
 
 async function searchCustomers(query) {
-  const q = query.trim().toLowerCase();
+  // Strip PostgREST filter-syntax characters to prevent the search term from
+  // injecting new OR clauses via the .or() filter string. Also caps length to
+  // limit DoS / pattern-backtracking on extreme inputs.
+  const q = query
+    .trim()
+    .toLowerCase()
+    .replace(/[,()*%]/g, '')
+    .slice(0, 100);
+  if (!q) return [];
 
   const { data, error } = await supabase
     .from('profiles')

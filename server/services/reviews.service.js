@@ -5,6 +5,9 @@ async function submitReview(customerId, { booking_id, rating, comment }) {
   if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
     throw Object.assign(new Error('Rating must be an integer between 1 and 5'), { status: 400 });
   }
+  if (comment && typeof comment === 'string' && comment.length > 1000) {
+    throw Object.assign(new Error('Comment must be under 1000 characters'), { status: 400 });
+  }
 
   const booking = await bookingsDao.getBookingById(booking_id);
   if (!booking) throw Object.assign(new Error('Booking not found'), { status: 404 });
