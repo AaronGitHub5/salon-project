@@ -1,5 +1,6 @@
 const availabilityDao = require('../daos/availability.dao');
 const servicesDao = require('../daos/services.dao');
+const shiftOverridesDao = require('../daos/shift_overrides.dao');
 
 // Returns how many minutes London is ahead of UTC on a given calendar date.
 // 0 during GMT (winter), 60 during BST (summer). Timezone-safe regardless of
@@ -31,6 +32,15 @@ async function getAvailableSlots(stylistId, date, serviceId) {
 
   if (!shift) {
     return { available: false, slots: [], message: 'Stylist off duty' };
+  }
+
+  // Date-specific override (sick day / holiday / training). If admin has blocked
+  // this date for this stylist, no new bookings may be taken regardless of the
+  // recurring weekly shift. Existing bookings were already cancelled + emailed
+  // by the override-creation flow.
+  const override = await shiftOverridesDao.getOverrideForDate(stylistId, date);
+  if (override && override.is_working === false) {
+    return { available: false, slots: [], message: 'Stylist unavailable on this date' };
   }
 
   const bookings = await availabilityDao.getBookingsForDay(stylistId, date);
