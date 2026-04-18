@@ -34,10 +34,7 @@ async function getAvailableSlots(stylistId, date, serviceId) {
     return { available: false, slots: [], message: 'Stylist off duty' };
   }
 
-  // Date-specific override (sick day / holiday / training). If admin has blocked
-  // this date for this stylist, no new bookings may be taken regardless of the
-  // recurring weekly shift. Existing bookings were already cancelled + emailed
-  // by the override-creation flow.
+  // Block booking if admin has set an override for this date
   const override = await shiftOverridesDao.getOverrideForDate(stylistId, date);
   if (override && override.is_working === false) {
     return { available: false, slots: [], message: 'Stylist unavailable on this date' };
