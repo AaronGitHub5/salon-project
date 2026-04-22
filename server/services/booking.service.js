@@ -310,7 +310,7 @@ async function rescheduleBooking(id, newStartTime, userId) {
   if (updated?.profiles?.email) {
     await sendEmail(
       updated.profiles.email,
-      'Reschedule Request Pending - Hair By Amnesia',
+      'Appointment Rescheduled - Hair By Amnesia',
       rescheduleTemplate({
         fullName: updated.profiles.full_name,
         serviceName: updated.services.name,

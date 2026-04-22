@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import API_URL from './config';
 
-export default function BookingModal({ service, onClose, onConfirm }) {
+export default function BookingModal({ service, onClose, onConfirm, isRescheduling = false, existingStylistId = null }) {
   const [stylists, setStylists] = useState([]);
-  const [selectedStylist, setSelectedStylist] = useState("");
+  const [selectedStylist, setSelectedStylist] = useState(existingStylistId ? String(existingStylistId) : "");
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedTime, setSelectedTime] = useState("");
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -174,13 +174,14 @@ export default function BookingModal({ service, onClose, onConfirm }) {
             <div>
               <label className="flex items-center gap-2 text-xs uppercase tracking-wider text-gray-500 mb-2">
                 <span className="w-5 h-5 rounded-full bg-black text-white flex items-center justify-center text-[10px]">1</span>
-                Select Stylist
+                {isRescheduling ? 'Stylist (locked)' : 'Select Stylist'}
               </label>
               <select
                 required
+                disabled={isRescheduling}
                 value={selectedStylist}
                 onChange={(e) => setSelectedStylist(e.target.value)}
-                className="w-full border border-gray-300 p-3 bg-white text-sm"
+                className={`w-full border border-gray-300 p-3 text-sm ${isRescheduling ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white'}`}
               >
                 <option value="">Choose a stylist...</option>
                 {stylists.map((s) => (

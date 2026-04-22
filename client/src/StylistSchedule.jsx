@@ -49,13 +49,40 @@ export default function StylistSchedule() {
   const [stylistProfile, setStylistProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [pendingLoading, setPendingLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [openWeeks, setOpenWeeks] = useState({});
 
   const authHeader = { Authorization: `Bearer ${session?.access_token}` };
 
+  // Re-fetches bookings + pending for the current stylist. Used by the initial
+  // load, the manual Refresh button, and the tab-focus listener. Silent mode
+  // skips loading spinners (for background refreshes).
+  const refreshSchedule = async (me, { silent = false } = {}) => {
+    if (!me) return;
+    if (!silent) setRefreshing(true);
+    try {
+      const bookingRes = await fetch(`${API_URL}/api/bookings/stylist/${me.id}`, { headers: authHeader });
+      const data = await bookingRes.json();
+      if (bookingRes.ok) {
+        const bookings = Array.isArray(data) ? data : [];
+        setMyBookings(bookings);
+      }
+      if (me.is_senior) {
+        const res = await fetch(`${API_URL}/api/bookings/pending/all`, { headers: authHeader });
+        const pd = await res.json();
+        setPendingBookings(Array.isArray(pd) ? pd : []);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      if (!silent) setRefreshing(false);
+    }
+  };
+
+  // Initial load — fetches the stylist record, bookings, and pending bookings.
   useEffect(() => {
-    async function fetchMySchedule() {
+    async function initialLoad() {
       if (!user?.email || !session?.access_token) { setLoading(false); return; }
       try {
         const stylistRes = await fetch(`${API_URL}/api/stylists`);
@@ -78,9 +105,15 @@ export default function StylistSchedule() {
           setOpenWeeks(initial);
         }
 
-        // Fetch pending if senior stylist — all pending across all stylists
         if (me.is_senior) {
-          fetchPending();
+          setPendingLoading(true);
+          try {
+            const res = await fetch(`${API_URL}/api/bookings/pending/all`, { headers: authHeader });
+            const pd = await res.json();
+            setPendingBookings(Array.isArray(pd) ? pd : []);
+          } finally {
+            setPendingLoading(false);
+          }
         }
       } catch (err) {
         console.error(err);
@@ -89,21 +122,21 @@ export default function StylistSchedule() {
         setLoading(false);
       }
     }
-    fetchMySchedule();
+    initialLoad();
   }, [user, session]);
 
-  const fetchPending = async () => {
-    setPendingLoading(true);
-    try {
-      const res = await fetch(`${API_URL}/api/bookings/pending/all`, { headers: authHeader });
-      const data = await res.json();
-      setPendingBookings(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setPendingLoading(false);
-    }
-  };
+  // Auto-refresh when the stylist tabs back to this page — catches new
+  // bookings / cancellations / reschedules made elsewhere without manual reload.
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible' && stylistProfile) {
+        refreshSchedule(stylistProfile, { silent: true });
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stylistProfile]);
 
   const toggleWeek = (key) => setOpenWeeks(prev => ({ ...prev, [key]: !prev[key] }));
 
@@ -203,7 +236,17 @@ export default function StylistSchedule() {
             <h1 className="font-display font-light text-[2rem] md:text-[2.4rem] text-[#1A1A18] leading-none">{stylistProfile.name}</h1>
             <p className="text-[0.72rem] font-light text-[#7A7870] mt-2">Manage your upcoming appointments.</p>
           </div>
-          <button onClick={() => navigate('/app')} className="text-[0.72rem] font-light tracking-[0.1em] uppercase text-[#7A7870] hover:text-[#1A1A18] transition-colors bg-transparent border-none cursor-pointer p-0" style={{ borderBottom: '1px solid #E4E0D8' }}>Exit</button>
+          <div className="flex items-center gap-5">
+            <button
+              onClick={() => refreshSchedule(stylistProfile)}
+              disabled={refreshing}
+              className="text-[0.72rem] font-light tracking-[0.1em] uppercase text-[#7A7870] hover:text-[#1A1A18] disabled:opacity-50 transition-colors bg-transparent border-none cursor-pointer p-0"
+              style={{ borderBottom: '1px solid #E4E0D8' }}
+            >
+              {refreshing ? 'Refreshing...' : 'Refresh'}
+            </button>
+            <button onClick={() => navigate('/app')} className="text-[0.72rem] font-light tracking-[0.1em] uppercase text-[#7A7870] hover:text-[#1A1A18] transition-colors bg-transparent border-none cursor-pointer p-0" style={{ borderBottom: '1px solid #E4E0D8' }}>Exit</button>
+          </div>
         </div>
 
         {/* Tabs — only shown for senior stylist */}

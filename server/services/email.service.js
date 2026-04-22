@@ -215,18 +215,17 @@ function overrideCancellationTemplate({ fullName, serviceName, stylistName, star
 
 function rescheduleTemplate({ fullName, serviceName, stylistName, newStartTime }) {
   return emailWrapper(`
-    <p style="font-size:0.62rem;text-transform:uppercase;letter-spacing:0.15em;color:#B8975A;margin:0 0 4px;">Reschedule Request</p>
-    <h2 style="font-family:'Cormorant Garamond',Georgia,serif;font-size:1.6rem;font-weight:300;color:#1A1A18;margin:0 0 16px;">Pending approval.</h2>
+    <p style="font-size:0.62rem;text-transform:uppercase;letter-spacing:0.15em;color:#B8975A;margin:0 0 4px;">Rescheduled</p>
+    <h2 style="font-family:'Cormorant Garamond',Georgia,serif;font-size:1.6rem;font-weight:300;color:#1A1A18;margin:0 0 16px;">New time confirmed.</h2>
     <p style="font-size:0.88rem;font-weight:300;color:#7A7870;line-height:1.6;">
-      Hi ${fullName}, your reschedule request has been submitted and is awaiting approval from your stylist.
+      Hi ${fullName}, your appointment has been rescheduled.
     </p>
     ${detailsTable([
       tableRow('Service', serviceName),
       tableRow('Stylist', stylistName),
-      tableRow('Requested Time', formatUk(newStartTime)),
-      tableRow('Status', 'Pending Approval'),
+      tableRow('New Date &amp; Time', formatUk(newStartTime)),
     ])}
-    <p style="font-size:0.85rem;font-weight:300;color:#7A7870;line-height:1.6;">You will receive a confirmation email once your stylist approves the new time.</p>
+    <p style="font-size:0.85rem;font-weight:300;color:#7A7870;line-height:1.6;">See you then!</p>
   `);
 }
 
