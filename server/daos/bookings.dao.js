@@ -178,7 +178,7 @@ async function completeBooking(id) {
 async function rescheduleBooking(id, newStartTime, newEndTime) {
   const { data, error } = await supabase
     .from('bookings')
-    .update({ start_time: newStartTime, end_time: newEndTime })
+    .update({ start_time: newStartTime, end_time: newEndTime, status: 'pending' })
     .eq('id', id)
     .select('*, services(name), stylists(name), profiles(email, full_name)')
     .single();
