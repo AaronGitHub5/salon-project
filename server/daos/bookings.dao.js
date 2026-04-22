@@ -57,7 +57,7 @@ async function getCustomerBookings(customerId) {
   const { data, error } = await supabase
     .from('bookings')
     .select(
-      `id, start_time, end_time, status, services(name, duration_minutes, base_price), stylists(name)`
+      `id, start_time, end_time, status, stylist_id, services(name, duration_minutes, base_price), stylists(name)`
     )
     .eq('customer_id', customerId)
     .neq('status', 'cancelled')
