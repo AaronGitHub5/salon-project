@@ -174,17 +174,19 @@ export default function BookingModal({ service, onClose, onConfirm, isRescheduli
             <div>
               <label className="flex items-center gap-2 text-xs uppercase tracking-wider text-gray-500 mb-2">
                 <span className="w-5 h-5 rounded-full bg-black text-white flex items-center justify-center text-[10px]">1</span>
-                {isRescheduling ? 'Stylist (locked)' : 'Select Stylist'}
+                {isRescheduling ? 'Stylist' : 'Select Stylist'}
               </label>
               <select
                 required
-                disabled={isRescheduling}
                 value={selectedStylist}
                 onChange={(e) => setSelectedStylist(e.target.value)}
-                className={`w-full border border-gray-300 p-3 text-sm ${isRescheduling ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white'}`}
+                className="w-full border border-gray-300 p-3 bg-white text-sm"
               >
-                <option value="">Choose a stylist...</option>
-                {stylists.map((s) => (
+                {!isRescheduling && <option value="">Choose a stylist...</option>}
+                {(isRescheduling
+                  ? stylists.filter((s) => String(s.id) === String(existingStylistId))
+                  : stylists
+                ).map((s) => (
                   <option key={s.id} value={s.id}>{s.name}</option>
                 ))}
               </select>
