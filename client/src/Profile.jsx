@@ -145,7 +145,7 @@ export default function Profile() {
       body: JSON.stringify({ new_start_time: newStartTime }),
     });
     if (res.ok) {
-      toast.success('Booking rescheduled! Check your email for confirmation.');
+      toast.success('Reschedule request sent. You\'ll receive an email once your stylist approves it.');
       setReschedulingBooking(null);
       const refreshRes = await fetch(`${API_URL}/api/bookings/customer/${user.id}`, { headers: authHeader });
       const data = await refreshRes.json();
